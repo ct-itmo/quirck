@@ -1,0 +1,33 @@
+[
+  {
+    "id": "ITMO_100000",
+    "isu": 100000,
+    "name": "Иван Иванов",
+    "family_name": "Иванов",
+    "given_name": "Иван",
+    "preferred_username": "id100000",
+    "gender": "male",
+    "is_student": true,
+    "zoneinfo": "Europe/Moscow",
+    "groups": [
+        { "name": "M33391" }
+    ],
+
+    "email": "ivanov@itmo.ru",
+    "password": "ivanov"
+  },
+{
+    "id": "ITMO_100001",
+    "isu": 100001,
+    "name": "Петр Петров",
+    "family_name": "Петров",
+    "given_name": "Пётр",
+    "middle_name": "Петрович",
+    "is_student": true,
+    "preferred_username": "petrov",
+    "gender": "male",
+    "zoneinfo": "Europe/Moscow",
+    "email": "petrov@itmo.ru",
+    "password": "petrov"
+  }
+]

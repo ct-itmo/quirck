@@ -1,0 +1,19 @@
+[Unit]
+Description=Quirck
+Requires=quirck-web.socket
+After=network.target
+
+[Service]
+Type=notify
+User=user
+Group=user
+WorkingDirectory=/home/user/quirck
+ExecStart=/home/user/.local/bin/poetry run gunicorn quirck.web.app:build_app()
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s TERM $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

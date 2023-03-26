@@ -1,0 +1,27 @@
+version: "3"
+services:
+  oidc:
+    build: etc/oidc-dev
+    ports:
+      - "127.0.0.1:12004:12004"
+  db:
+    image: postgres
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=quirck
+      - POSTGRES_USER=quirck
+      - POSTGRES_PASSWORD=quirck
+    ports:
+      - "127.0.0.1:12005:5432"
+  s3:
+    image: minio/minio
+    ports:
+      - "127.0.0.1:12006:9000"
+      - "127.0.0.1:12007:12007"
+    volumes:
+      - files:/data
+    command: ["server", "/data", "--console-address", ":12007"]
+volumes:
+  postgres:
+  files:

@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./networking/images/ping/Cargo.toml"
+    ]
+}
