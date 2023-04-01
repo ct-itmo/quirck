@@ -8,6 +8,7 @@ import httpx
 import jwt
 
 from quirck.auth.oauth import OAuthConfiguration, sso_configuration
+from quirck.core.config import SSO_CLIENT_ID
 
 CACHE_TTL = timedelta(hours=4)
 
@@ -112,7 +113,7 @@ class JWKS:
         )
 
 
-sso_jwks = JWKS(sso_configuration, audience="quirck")
+sso_jwks = JWKS(sso_configuration, audience=SSO_CLIENT_ID)
 
 
 __all__ = ["JWKS", "sso_jwks"]
