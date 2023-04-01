@@ -1,8 +1,11 @@
 from uvicorn.workers import UvicornWorker
 
+from quirck.core.config import ROOT_PATH
+
 
 class QuirckWorker(UvicornWorker):
     CONFIG_KWARGS = {
+        "root_path": ROOT_PATH,
         "forwarded_allow_ips": "*",
         "proxy_headers": True,
         "lifespan": "on",

@@ -8,6 +8,7 @@ DEBUG = config("DEBUG", cast=bool, default=False)
 DATABASE_URL = config("DATABASE_URL", cast=URL)
 SECRET_KEY = config("SECRET_KEY", cast=Secret)
 PORT = config("PORT", cast=int, default=12003)
+ROOT_PATH = config("ROOT_PATH", cast=str, default="/")
 
 SSO_CONFIGURATION_URL = config("SSO_CONFIGURATION_URL", cast=str)
 SSO_CLIENT_ID = config("SSO_CLIENT_ID", cast=str)
