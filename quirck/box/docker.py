@@ -13,7 +13,6 @@ from quirck.box.model import DockerMeta, DockerState
 from quirck.box.vpn import generate_vpn
 from quirck.core import config
 
-client = aiodocker.Docker()
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +21,7 @@ def get_full_object_name(user_id: int, name: str) -> str:
 
 
 async def create_network(user_id: int, network: NetworkMeta) -> DockerNetwork:
-    return await client.networks.create({
+    return await aiodocker.Docker().networks.create({
         "Name": get_full_object_name(user_id, network.name),
         "Driver": "kathara/katharanp:amd64",
         "IPAM": {"Driver": "null"},
@@ -32,6 +31,8 @@ async def create_network(user_id: int, network: NetworkMeta) -> DockerNetwork:
 
 
 async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerContainer:
+    client = aiodocker.Docker()
+
     environment: dict[str, Any] = {"USER_ID": meta.user_id}
     environment.update(container.environment)
 
@@ -146,6 +147,8 @@ async def lock_meta(session: AsyncSession, user_id: int, chapter: str | None) ->
 
 
 async def clean(user_id: int) -> None:
+    client = aiodocker.Docker()
+
     containers = await client.containers.list(
         all=True,
         filters={"label": [f"user_id={user_id}"]}
@@ -154,15 +157,10 @@ async def clean(user_id: int) -> None:
     for container in containers:
         await container.delete(force=True, v=True)
 
-    networks = [
-        DockerNetwork(client, network["Id"])
-        for network in await client.networks.list(
+    for network in await client.networks.list(
             filters={"label": f"user_id={user_id}"}
-        )
-    ]
-
-    for network in networks:
-        await network.delete()
+        ):
+        await DockerNetwork(client, network["Id"]).delete()
 
 
 async def launch(session: AsyncSession, meta: DockerMeta, user_id: int, deployment: Deployment) -> None:
