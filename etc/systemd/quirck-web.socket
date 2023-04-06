@@ -2,9 +2,8 @@
 Description=quirck socket
 
 [Socket]
-ListenStream=/run/quirck.sock
-SocketUser=www-data
-SocketMode=600
+ListenStream=/run/quirck/quirck.sock
+SocketMode=666
 
 [Install]
 WantedBy=sockets.target

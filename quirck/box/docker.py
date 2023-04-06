@@ -21,18 +21,17 @@ def get_full_object_name(user_id: int, name: str) -> str:
 
 
 async def create_network(user_id: int, network: NetworkMeta) -> DockerNetwork:
-    return await aiodocker.Docker().networks.create({
-        "Name": get_full_object_name(user_id, network.name),
-        "Driver": "kathara/katharanp:amd64",
-        "IPAM": {"Driver": "null"},
-        "Labels": {"user_id": f"{user_id}"},
-        "CheckDuplicate": True
-    })
+    async with aiodocker.Docker() as client:
+        return await client.networks.create({
+            "Name": get_full_object_name(user_id, network.name),
+            "Driver": "kathara/katharanp:amd64",
+            "IPAM": {"Driver": "null"},
+            "Labels": {"user_id": f"{user_id}"},
+            "CheckDuplicate": True
+        })
 
 
 async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerContainer:
-    client = aiodocker.Docker()
-
     environment: dict[str, Any] = {"USER_ID": meta.user_id}
     environment.update(container.environment)
 
@@ -81,40 +80,41 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
     if container.ipv6_forwarding:
         sysctls["net.ipv6.conf.all.forwarding"] = "1"
 
-    box = await client.containers.create(
-        name=get_full_object_name(meta.user_id, container.name),
-        config={
-            "AttachStdout": False,
-            "AttachStderr": False,
-            "Image": container.image,
-            "Env": [
-                f"{key}={value}"
-                for key, value in environment.items()
-            ],
-            "Labels": {
-                "user_id": f"{meta.user_id}",
-                "chapter": meta.chapter
-            },
-            "HostConfig": {
-                "CapAdd": ["NET_ADMIN", "NET_RAW", "SYS_PTRACE"],
-                "Memory": container.mem_limit,
-                "Sysctls": sysctls,
-                **host_options
-            },
-            **options
-        }
-    )
+    async with aiodocker.Docker() as client:
+        box = await client.containers.create(
+            name=get_full_object_name(meta.user_id, container.name),
+            config={
+                "AttachStdout": False,
+                "AttachStderr": False,
+                "Image": container.image,
+                "Env": [
+                    f"{key}={value}"
+                    for key, value in environment.items()
+                ],
+                "Labels": {
+                    "user_id": f"{meta.user_id}",
+                    "chapter": meta.chapter
+                },
+                "HostConfig": {
+                    "CapAdd": ["NET_ADMIN", "NET_RAW"],
+                    "Memory": container.mem_limit,
+                    "Sysctls": sysctls,
+                    **host_options
+                },
+                **options
+            }
+        )
 
-    for network_name, mac_address in networks.items():
-        network = await client.networks.get(get_full_object_name(meta.user_id, network_name))
-        await network.connect({
-            "Container": box.id,
-            "EndpointConfig": {
-                "MacAddress": mac_address
-            } if mac_address else {}
-        })
+        for network_name, mac_address in networks.items():
+            network = await client.networks.get(get_full_object_name(meta.user_id, network_name))
+            await network.connect({
+                "Container": box.id,
+                "EndpointConfig": {
+                    "MacAddress": mac_address
+                } if mac_address else {}
+            })
 
-    await box.start()
+        await box.start()
 
     return box
 
@@ -147,20 +147,19 @@ async def lock_meta(session: AsyncSession, user_id: int, chapter: str | None) ->
 
 
 async def clean(user_id: int) -> None:
-    client = aiodocker.Docker()
+    async with aiodocker.Docker() as client:
+        containers = await client.containers.list(
+            all=True,
+            filters={"label": [f"user_id={user_id}"]}
+        )
 
-    containers = await client.containers.list(
-        all=True,
-        filters={"label": [f"user_id={user_id}"]}
-    )
+        for container in containers:
+            await container.delete(force=True, v=True)
 
-    for container in containers:
-        await container.delete(force=True, v=True)
-
-    for network in await client.networks.list(
-            filters={"label": f"user_id={user_id}"}
-        ):
-        await DockerNetwork(client, network["Id"]).delete()
+        for network in await client.networks.list(
+                filters={"label": f"user_id={user_id}"}
+            ):
+            await DockerNetwork(client, network["Id"]).delete()
 
 
 async def launch(session: AsyncSession, meta: DockerMeta, user_id: int, deployment: Deployment) -> None:

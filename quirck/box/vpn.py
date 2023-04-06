@@ -80,9 +80,7 @@ def generate_key_pair(
         x509.NameAttribute(NameOID.COMMON_NAME, common_name)
     ])
 
-    assert(not ((signing_issuer is None) ^ (signing_key is None)))
-
-    ca = signing_issuer is None
+    assert (signing_issuer is None) == (signing_key is None)
 
     if signing_issuer is None:
         signing_issuer = subject_name
@@ -99,7 +97,7 @@ def generate_key_pair(
              .add_extension(AuthorityKeyIdentifier.from_issuer_public_key(signing_key.public_key()), False)
              .add_extension(SubjectKeyIdentifier.from_public_key(private_key.public_key()), False))
 
-    if ca:
+    if signing_issuer is None:
         chain = chain.add_extension(BasicConstraints(ca=True, path_length=None), True)
 
     certificate = chain.sign(signing_key, hashes.SHA256())
