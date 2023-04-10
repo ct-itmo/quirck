@@ -81,6 +81,7 @@ def generate_key_pair(
     ])
 
     assert (signing_issuer is None) == (signing_key is None)
+    is_ca = signing_issuer is None
 
     if signing_issuer is None:
         signing_issuer = subject_name
@@ -97,7 +98,7 @@ def generate_key_pair(
              .add_extension(AuthorityKeyIdentifier.from_issuer_public_key(signing_key.public_key()), False)
              .add_extension(SubjectKeyIdentifier.from_public_key(private_key.public_key()), False))
 
-    if signing_issuer is None:
+    if is_ca:
         chain = chain.add_extension(BasicConstraints(ca=True, path_length=None), True)
 
     certificate = chain.sign(signing_key, hashes.SHA256())
