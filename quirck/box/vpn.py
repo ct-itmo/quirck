@@ -21,6 +21,8 @@ cipher AES-256-GCM
 auth SHA256
 key-direction 1
 
+push-peer-info
+
 {directives}
 verb 3
 

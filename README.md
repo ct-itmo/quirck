@@ -17,7 +17,7 @@
 
 Установите зависимости в виртуальное окружение: `poetry install`.
 
-Добавьте плагин для поддержки L2-сети: `docker plugin install kathara/katharanp:amd64`. Если у вас на хосте `nftables`-бекенд, воспользуйтесь [инструкцией](https://github.com/KatharaFramework/NetworkPlugin#use-katharanp-without-kathar%C3%A0).
+Добавьте плагин для поддержки L2-сети: `docker plugin install nsychev/katharanp:amd64`. Если у вас на хосте `nftables`-бекенд, воспользуйтесь [инструкцией](https://github.com/KatharaFramework/NetworkPlugin#use-katharanp-without-kathar%C3%A0).
 
 Запустите: `poetry run python -m quirck`.
 

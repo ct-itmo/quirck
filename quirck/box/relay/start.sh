@@ -10,26 +10,27 @@ mkdir -p /logs
 mkdir -p /dev/net
 mknod /dev/net/tun c 10 200 || true
 
-openvpn --config /app/openvpn.conf --daemon
-
-sleep 5
-
+echo "Configuration:"
+env | grep NETWORK | tee /run/network.env
+echo ""
 echo "Interfaces:"
-ip -br addr show
+ip -br link show
 
-INTERNAL=$(ip -br addr show | awk -F' ' 'NF == 3' | grep eth | cut -f1 -d ' ' | cut -f1 -d@)
-echo "Internal interface is $INTERNAL"
+for network in $NETWORK_LIST; do
+    mac_name="NETWORK_HWADDR_$network"
+    mac=${!mac_name}
+    iface=$(ip -o link | grep -i $mac | cut -d':' -f 2 | cut -d'@' -f 1)
+    echo "Interface $iface corresponds to network $network"
 
-ip link set tap0 up
+    ip link set $iface up
+    ip link set $iface promisc on
+    ip link add name br-$network type bridge
+    ip link set $iface master br-$network
+    ip link set br-$network up
+    ip link set br-$network promisc on
+done
 
-ip link add name br0 type bridge
-ip link set br0 up
-ip link set br0 promisc on
-
-ip link set $INTERNAL promisc on
-ip link set $INTERNAL master br0
-ip link set tap0 promisc on
-ip link set tap0 master br0
+openvpn --config /app/openvpn.conf --daemon
 
 shutdown() {
   echo "Shutting down"
@@ -37,7 +38,6 @@ shutdown() {
 }
 
 trap 'shutdown' SIGTERM
-
 echo "It's alive, sleeping..."
 
 while true; do

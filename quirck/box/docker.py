@@ -24,7 +24,7 @@ async def create_network(user_id: int, network: NetworkMeta) -> DockerNetwork:
     async with aiodocker.Docker() as client:
         return await client.networks.create({
             "Name": get_full_object_name(user_id, network.name),
-            "Driver": "kathara/katharanp:amd64",
+            "Driver": "nsychev/katharanp:amd64",
             "IPAM": {"Driver": "null"},
             "Labels": {"user_id": f"{user_id}"},
             "CheckDuplicate": True
@@ -110,7 +110,8 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
             await network.connect({
                 "Container": box.id,
                 "EndpointConfig": {
-                    "MacAddress": mac_address
+                    "MacAddress": mac_address,
+                    "DriverOpts": {"org.kathara.katharanp.mac": mac_address}
                 } if mac_address else {}
             })
 
