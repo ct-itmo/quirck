@@ -120,12 +120,17 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
     return box
 
 
-async def lock_meta(session: AsyncSession, user_id: int, chapter: str | None) -> DockerMeta:
+async def lock_meta(session: AsyncSession, user_id: int, chapter: str | None, assert_chapter: bool = False) -> DockerMeta:
     meta = (await session.scalars(
         select(DockerMeta)
             .filter(DockerMeta.user_id == user_id)
             .with_for_update()
     )).one_or_none()
+
+    if assert_chapter and (meta is None or meta.chapter != chapter):
+        # Close the transaction
+        await session.rollback()
+        raise DockerConflict()
 
     if meta is None:
         meta = DockerMeta(user_id=user_id, chapter=chapter, state=DockerState.IN_PROGRESS)
@@ -135,7 +140,6 @@ async def lock_meta(session: AsyncSession, user_id: int, chapter: str | None) ->
         return meta
 
     if meta.state == DockerState.IN_PROGRESS:
-        # Close the transaction
         await session.rollback()
         raise DockerConflict()
 
@@ -163,19 +167,19 @@ async def clean(user_id: int) -> None:
             await DockerNetwork(client, network["Id"]).delete()
 
 
-async def launch(session: AsyncSession, meta: DockerMeta, user_id: int, deployment: Deployment) -> None:
+async def launch(session: AsyncSession, meta: DockerMeta, deployment: Deployment) -> None:
     """Expects that lock is taken elsewhere."""
 
     assert(meta.state == DockerState.IN_PROGRESS)
 
-    await clean(user_id)
+    await clean(meta.user_id)
 
     if meta.vpn is None:
-        meta.vpn = await generate_vpn(user_id, meta.port)
+        meta.vpn = await generate_vpn(meta.user_id, meta.port)
         await session.commit()
 
     for network in deployment.networks:
-        await create_network(user_id, network)
+        await create_network(meta.user_id, network)
     
     for container in deployment.containers:
         await run_container(meta, container)
