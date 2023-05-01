@@ -1,33 +1,48 @@
 [
-  {
-    "id": "ITMO_100000",
-    "isu": 100000,
-    "name": "Иван Иванов",
-    "family_name": "Иванов",
-    "given_name": "Иван",
-    "preferred_username": "id100000",
-    "gender": "male",
-    "is_student": true,
-    "zoneinfo": "Europe/Moscow",
-    "groups": [
-        { "name": "M33391" }
-    ],
-
-    "email": "ivanov@itmo.ru",
-    "password": "ivanov"
-  },
-{
-    "id": "ITMO_100001",
-    "isu": 100001,
-    "name": "Петр Петров",
-    "family_name": "Петров",
-    "given_name": "Пётр",
-    "middle_name": "Петрович",
-    "is_student": true,
-    "preferred_username": "petrov",
-    "gender": "male",
-    "zoneinfo": "Europe/Moscow",
-    "email": "petrov@itmo.ru",
-    "password": "petrov"
-  }
+    {
+        "SubjectId": "100000",
+        "Username": "ivanov@itmo.ru",
+        "Password": "ivanov",
+        "Claims": [
+            {
+                "Type": "isu",
+                "Value": "100000",
+                "ValueType": "json"
+            },
+            {
+                "Type": "name",
+                "Value": "Иван Иванов"
+            },
+            {
+                "Type": "family_name",
+                "Value": "Иванов"
+            },
+            {
+                "Type": "given_name",
+                "Value": "Иван"
+            },
+            {
+                "Type": "preferred_username",
+                "Value": "id100000"
+            },
+            {
+                "Type": "gender",
+                "Value": "male"
+            },
+            {
+                "Type": "is_student",
+                "Value": "true",
+                "ValueType": "json"
+            },
+            {
+                "Type": "zoneinfo",
+                "Value": "Europe/Moscow"
+            },
+            {
+                "Type": "groups",
+                "Value": "[{\"name\":\"M33391\"}]",
+                "ValueType": "json"
+            }
+        ]
+    }
 ]

@@ -69,9 +69,10 @@ class JWKS:
 
         return algorithm
 
-    async def fetch_keys(self) -> None:
-        if self.last_update and datetime.now() - self.last_update < CACHE_TTL:
-            return
+    async def fetch_keys(self, force_update: bool = False) -> bool:
+        """Returns True if keys were updated and False if they were returned from cache."""
+        if not force_update and self.last_update and datetime.now() - self.last_update < CACHE_TTL:
+            return False
 
         self.last_update = datetime.now()
         url = await self.configuration.get_jwks_url()
@@ -85,12 +86,16 @@ class JWKS:
             for key in response.json()["keys"]
         }
 
-    async def get_key(self, kid: str) -> JWTKeyInfo:
-        await self.fetch_keys()
+        return True
 
+    async def get_key(self, kid: str, force_update: bool = False) -> JWTKeyInfo:
+        updated = await self.fetch_keys(force_update)
         key = self.key_cache.get(kid)
 
         if key is None:
+            if not updated:
+                return await self.get_key(kid, force_update=True)
+
             raise JWTMalformedToken(f"Unknown or revoked kid: {kid}")
 
         jwk = jwt.PyJWK(key)

@@ -1,0 +1,14 @@
+[
+    {
+        "Name": "openid",
+        "ClaimTypes": ["isu", "preferred_username"]
+    },
+    {
+        "Name": "profile",
+        "ClaimTypes": ["name", "first_name", "given_name", "middle_name", "gender", "zoneinfo"]
+    },
+    {
+        "Name": "edu",
+        "ClaimTypes": ["is_student", "groups"]
+    }
+]

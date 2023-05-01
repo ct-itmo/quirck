@@ -1,0 +1,16 @@
+[
+    {
+      "ClientId": "quirck",
+      "ClientSecrets": ["quirck"],
+      "Description": "Client for implicit flow",
+      "AllowedGrantTypes": ["authorization_code", "refresh_token"],
+      "AllowAccessTokensViaBrowser": true,
+      "RedirectUris": ["http://localhost:12003/*", "*"],
+      "AllowedScopes": ["openid", "profile", "edu"],
+      "IdentityTokenLifetime": 3600,
+      "AccessTokenLifetime": 3600,
+      "AllowPlainTextPkce": true,
+      "AlwaysIncludeUserClaimsInIdToken": true,
+      "RequirePkce": false
+    }
+  ]

@@ -3,7 +3,7 @@ services:
   oidc:
     build: etc/oidc-dev
     ports:
-      - "127.0.0.1:12004:12004"
+      - "127.0.0.1:12004:80"
   db:
     image: postgres
     volumes:
