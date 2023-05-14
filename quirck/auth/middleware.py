@@ -36,3 +36,22 @@ class AuthenticationMiddleware:
                 return await response(scope, receive, send)
 
         return await self.app(scope, receive, send)
+
+
+class AdminMiddleware:
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] in ("http", "websocket"):
+            session: dict[str, str] = scope["session"]
+            user: User = scope["user"]
+
+            if "origin_user_id" not in session and not user.is_admin:
+                response = TemplateResponse(Request(scope), "error.html", {"error": "Недостаточно прав"}, status_code=403)
+                return await response(scope, receive, send)
+
+            return await self.app(scope, receive, send)
+
+
+__all__ = ["AuthenticationMiddleware", "AdminMiddleware"]

@@ -1,3 +1,5 @@
+import logging
+
 from typing import Any
 from urllib.parse import urlencode
 
@@ -5,11 +7,14 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.datastructures import CommaSeparatedStrings
+from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
-from starlette.routing import Route, Router
+from starlette.routing import Mount, Route, Router
 
+from quirck.auth.form import ImpersonateForm
 from quirck.auth.jwk import sso_jwks
+from quirck.auth.middleware import AdminMiddleware, AuthenticationMiddleware
 from quirck.auth.model import User
 from quirck.auth.oauth import OAuthException, sso_client
 from quirck.core.config import config
@@ -17,6 +22,7 @@ from quirck.core.module import app
 from quirck.web.template import TemplateResponse
 
 ALLOWED_GROUPS = config('ALLOWED_GROUPS', cast=CommaSeparatedStrings)
+logger = logging.getLogger(__name__)
 
 
 def parse_user(user_info: dict[str, Any]) -> dict[str, Any]:
@@ -95,6 +101,11 @@ async def sso_login_failed(request: Request) -> Response:
 
 
 async def sso_logout(request: Request) -> Response:
+    if "origin_user_id" in request.session:
+        logger.info("User %s is logged out from %s", request.session["origin_user_id"], request.session["user_id"])
+        request.session["user_id"] = request.session.pop("origin_user_id")
+        return RedirectResponse(request.url_for(app.main_route), status_code=303)
+
     request.session.pop("user_id", None)
 
     base_url = await sso_client.configuration.get_logout_url()
@@ -110,12 +121,41 @@ async def sso_logout_complete(request: Request) -> Response:
     return TemplateResponse(request, "logged_out.html")
 
 
+async def check_user_exists(request: Request, user_id: int) -> bool:
+    database: AsyncSession = request.scope["db"]
+    return await database.scalar(select(User).where(User.id == user_id)) is not None
+
+
+async def impersonate(request: Request) -> Response:
+    form = await ImpersonateForm.from_formdata(request)
+
+    if await form.validate_on_submit():
+        logger.info("User %s is impersonating as %s", request.session["user_id"], form.user_id.data)
+        request.session["origin_user_id"] = request.session.pop("user_id")
+        request.session["user_id"] = form.user_id.data
+
+        return RedirectResponse(request.url_for(app.main_route), status_code=303)
+
+    return TemplateResponse(request, "impersonate.html", {"form": form})
+
+
 sso_router = Router([
     Route("/start", sso_start, name="start"),
     Route("/callback", sso_callback, name="callback"),
     Route("/failed", sso_login_failed, name="failed"),
     Route("/logout", sso_logout, name="logout"),
-    Route("/logout/complete", sso_logout_complete, name="logout_complete")
+    Route("/logout/complete", sso_logout_complete, name="logout_complete"),
+    Mount(
+        "/admin",
+        routes=[
+            Route("/impersonate", impersonate, name="impersonate", methods=["GET", "POST"])
+        ],
+        middleware=[
+            Middleware(AuthenticationMiddleware),
+            Middleware(AdminMiddleware)
+        ],
+        name="admin"
+    )
 ])
 
 
