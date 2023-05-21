@@ -68,8 +68,8 @@ async def sso_callback(request: Request) -> Response:
     user = await database.scalar(select(User).where(User.id == user_record["id"]))
 
     if user is None:
-        if "groups" not in user_info or \
-            all(group["name"] not in ALLOWED_GROUPS for group in user_info["groups"]):
+        if ALLOWED_GROUPS != ["*"] and ("groups" not in user_info or \
+            all(group["name"] not in ALLOWED_GROUPS for group in user_info["groups"])):
             return RedirectResponse(request.url_for("auth:failed") + "?error=group", status_code=303)
 
     statement = insert(User).values([user_record])
