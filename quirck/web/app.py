@@ -16,7 +16,7 @@ from quirck.web.handlers import base_exception_handler, http_exception_handler
 def build_app() -> Starlette:
     return Starlette(
         middleware=[
-            Middleware(SessionMiddleware, secret_key=config.SECRET_KEY),
+            Middleware(SessionMiddleware, secret_key=config.SECRET_KEY, session_cookie=config.SESSION_COOKIE_NAME, path=config.SESSION_COOKIE_PATH),
             Middleware(DatabaseMiddleware, url=config.DATABASE_URL, create_tables=True),
             Middleware(CSRFProtectMiddleware, csrf_secret=config.SECRET_KEY)
         ],
