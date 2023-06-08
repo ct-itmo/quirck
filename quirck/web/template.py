@@ -15,7 +15,7 @@ template_env = jinja2.Environment(autoescape=True)
 @jinja2.pass_context
 def url_for(context: dict[str, typing.Any], name: str, **path_params: typing.Any) -> str:
     request: Request = context["request"]
-    return request.url_for(name, **path_params)
+    return str(request.url_for(name, **path_params))
 
 
 def ru_ending_filter(num, one, two, five):

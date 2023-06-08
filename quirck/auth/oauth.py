@@ -106,7 +106,7 @@ class OAuthClient:
         state = secrets.token_hex(32) # CSRF protection as of RFC6749
         request.session["state"] = state
 
-        query_params: dict[str, Any] = {
+        query_params: dict[str, str] = {
             "client_id": self.client_id,
             "redirect_uri": redirect_uri,
             "state": state,

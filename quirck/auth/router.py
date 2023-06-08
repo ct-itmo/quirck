@@ -42,7 +42,7 @@ def parse_user(user_info: dict[str, Any]) -> dict[str, Any]:
 async def sso_start(request: Request) -> Response:
     return await sso_client.authorize_redirect(
         request,
-        redirect_uri=request.url_for("auth:callback"),
+        redirect_uri=str(request.url_for("auth:callback")),
         scope="openid profile edu",
         require_prompt=request.query_params.get("prompt") == "1"
     )
@@ -52,7 +52,7 @@ async def sso_callback(request: Request) -> Response:
     try:
         token = await sso_client.process_code_flow(
             request,
-            redirect_uri=request.url_for("auth:callback")
+            redirect_uri=str(request.url_for("auth:callback"))
         )
     except OAuthException as exc:
         return RedirectResponse(f"{request.url_for('auth:failed')}?error=oauth", status_code=303)
@@ -60,7 +60,7 @@ async def sso_callback(request: Request) -> Response:
     user_info = await sso_jwks.decode(token["id_token"])
 
     if "isu" not in user_info:
-        return RedirectResponse(request.url_for("auth:failed") + "?error=isu", status_code=303)
+        return RedirectResponse(f"{request.url_for('auth:failed')}?error=isu", status_code=303)
     
     user_record = parse_user(user_info)
 
@@ -70,7 +70,7 @@ async def sso_callback(request: Request) -> Response:
     if user is None:
         if ALLOWED_GROUPS != ["*"] and ("groups" not in user_info or \
             all(group["name"] not in ALLOWED_GROUPS for group in user_info["groups"])):
-            return RedirectResponse(request.url_for("auth:failed") + "?error=group", status_code=303)
+            return RedirectResponse(f"{request.url_for('auth:failed')}?error=group", status_code=303)
 
     statement = insert(User).values([user_record])
     statement = statement.on_conflict_do_update(
