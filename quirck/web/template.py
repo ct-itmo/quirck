@@ -1,3 +1,5 @@
+import datetime
+import pytz
 import typing
 
 import jinja2
@@ -16,6 +18,10 @@ template_env = jinja2.Environment(autoescape=True)
 def url_for(context: dict[str, typing.Any], name: str, **path_params: typing.Any) -> str:
     request: Request = context["request"]
     return str(request.url_for(name, **path_params))
+
+
+def moscowtime(dt: datetime.datetime, format: str = "%d.%m.%Y %H:%M:%S") -> str:
+    return dt.astimezone(tz=pytz.timezone("Europe/Moscow")).strftime(format)
 
 
 def ru_ending_filter(num, one, two, five):
@@ -51,8 +57,10 @@ def mapattr_filter(objects, *attributes):
 
 
 template_env.globals["url_for"] = url_for
+template_env.globals["now"] = datetime.datetime.now
 template_env.filters["ending"] = ru_ending_filter
 template_env.filters["mapattr"] = mapattr_filter
+template_env.filters["moscowtime"] = moscowtime
 
 
 class TemplateResponse(Response):
