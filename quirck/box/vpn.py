@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
 
+from quirck.box.config import VPN_HOST
 from quirck.core import config, s3
 
 
@@ -134,7 +135,7 @@ async def generate_vpn(user_id: int, port: int):
         ("linux", LINUX_DIRECTIVES)
     ]:
         client_config = BASE.format(
-            host=config.VPN_HOST, port=port, directives=directives,
+            host=VPN_HOST, port=port, directives=directives,
             ca_certificate=format_pem_for_conf(ca_certificate.public_bytes(Encoding.PEM)),
             client_certificate=format_pem_for_conf(client_certificate.public_bytes(Encoding.PEM)),
             client_key=format_pem_for_conf(
@@ -147,7 +148,7 @@ async def generate_vpn(user_id: int, port: int):
         )
 
         await s3.upload_bytes(
-            config.S3_DEFAULT_BUCKET,
+            s3.S3_DEFAULT_BUCKET,
             "vpn", user_id, f"config-{platform}.ovpn",
             client_config.encode()
         )

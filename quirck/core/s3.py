@@ -3,22 +3,30 @@ from pathlib import Path
 
 import aioboto3
 import botocore.client
+from starlette.datastructures import Secret
 
-from quirck.core import config
+from quirck.core.config import config
+
+
+S3_ENDPOINT_URL = config("S3_ENDPOINT_URL", cast=str)
+S3_REGION_NAME = config("S3_REGION_NAME", cast=str, default="us-east-1")
+S3_ACCESS_KEY_ID = config("S3_ACCESS_KEY_ID", cast=str)
+S3_SECRET_ACCESS_KEY = config("S3_SECRET_ACCESS_KEY", cast=Secret)
+S3_DEFAULT_BUCKET = config("S3_DEFAULT_BUCKET", cast=str)
 
 
 def get_session() -> aioboto3.Session:
     return aioboto3.Session(
-        aws_access_key_id=config.S3_ACCESS_KEY_ID,
-        aws_secret_access_key=config.S3_SECRET_ACCESS_KEY
+        aws_access_key_id=S3_ACCESS_KEY_ID,
+        aws_secret_access_key=S3_SECRET_ACCESS_KEY
     )
 
 
 def get_client():
     return get_session().client(
         "s3",
-        config.S3_REGION_NAME,
-        endpoint_url=config.S3_ENDPOINT_URL,
+        S3_REGION_NAME,
+        endpoint_url=S3_ENDPOINT_URL,
         config=botocore.client.Config(signature_version='s3v4')
     )
 
@@ -26,8 +34,8 @@ def get_client():
 def get_resource():
     return get_session().resource(
         "s3",
-        config.S3_REGION_NAME,
-        endpoint_url=config.S3_ENDPOINT_URL
+        S3_REGION_NAME,
+        endpoint_url=S3_ENDPOINT_URL
     )
 
 
