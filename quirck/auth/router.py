@@ -55,6 +55,7 @@ async def sso_callback(request: Request) -> Response:
             redirect_uri=str(request.url_for("auth:callback"))
         )
     except OAuthException as exc:
+        logger.info("Authorization failed: %s", exc)
         return RedirectResponse(f"{request.url_for('auth:failed')}?error=oauth", status_code=303)
 
     user_info = await sso_jwks.decode(token["id_token"])

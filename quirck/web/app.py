@@ -14,6 +14,11 @@ from quirck.web.handlers import base_exception_handler, http_exception_handler
 
 
 def build_app() -> Starlette:
+    shutdown_handlers = []
+
+    if hasattr(app, "shutdown"):
+        shutdown_handlers.append(app.shutdown)
+
     return Starlette(
         middleware=[
             Middleware(SessionMiddleware, secret_key=config.SECRET_KEY, session_cookie=config.SESSION_COOKIE_NAME, path=config.SESSION_COOKIE_PATH),
@@ -28,7 +33,8 @@ def build_app() -> Starlette:
         exception_handlers={
             HTTPException: http_exception_handler,
             Exception: base_exception_handler
-        }  # type: ignore
+        },  # type: ignore
+        on_shutdown=shutdown_handlers
     )
 
 
