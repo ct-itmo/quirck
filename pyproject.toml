@@ -6,21 +6,21 @@ authors = ["Nikita Sychev"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-starlette = "^0.27.0"
-uvicorn = "^0.22.0"
-Jinja2 = "^3.1.2"
-python-multipart = "^0.0.6"
-aioboto3 = "^11.2.0"
-httpx = "^0.24.1"
-SQLAlchemy = {version = "^2.0.19", extras = ["asyncio", "mypy"]}
-asyncpg = "^0.27.0"
-gunicorn = "^20.1.0"
+starlette = "^0.37.0"
+uvicorn = "^0.27.0"
+Jinja2 = "^3.1.3"
+python-multipart = "^0.0.7"
+aioboto3 = "^12.3.0"
+httpx = "^0.26.0"
+SQLAlchemy = {version = "^2.0.25", extras = ["asyncio", "mypy"]}
+asyncpg = "^0.29.0"
+gunicorn = "^21.2.0"
 itsdangerous = "^2.1.2"
 PyJWT = {extras = ["crypto"], version = "^2.8.0"}
-cryptography = "^41.0.3"
+cryptography = "^42.0.2"
 aiodocker = {git = "https://github.com/aio-libs/aiodocker.git", rev = "master"}
 Starlette-WTF = "^0.4.3"
-pytz = "^2023.3"
+pytz = "*"
 
 
 [build-system]
