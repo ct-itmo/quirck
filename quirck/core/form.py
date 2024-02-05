@@ -1,9 +1,6 @@
-import re
-
 from markupsafe import Markup, escape
 from starlette_wtf import StarletteForm
-from wtforms import StringField, SubmitField, TextAreaField
-from wtforms.validators import DataRequired
+from wtforms import SubmitField, TextAreaField
 from wtforms.widgets import TextArea
 
 
@@ -27,21 +24,4 @@ class AceEditorField(TextAreaField):
     widget = AceEditorWidget()
 
 
-class BaseTaskForm(QuirckForm):
-    async def check(self) -> bool:
-        raise NotImplementedError(f"{self.__class__.__name__} does not implement check()")
-
-    @classmethod
-    def make_task(cls, slug: str, **kwargs) -> type["BaseTaskForm"]:
-        return type(slug, (cls, ), kwargs)
-
-
-class RegexpForm(BaseTaskForm):
-    value = StringField(label="", validators=[DataRequired()])
-    answer: re.Pattern
-
-    async def check(self) -> bool:
-        return self.answer.fullmatch(self.value.data.strip()) is not None
-
-
-__all__ = ["QuirckForm", "BaseTaskForm", "RegexpForm", "AceEditorField"]
+__all__ = ["QuirckForm", "AceEditorField"]
