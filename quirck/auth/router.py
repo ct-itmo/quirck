@@ -72,7 +72,7 @@ async def sso_callback(request: Request) -> Response:
         can_register = False
 
         if not can_register and hasattr(app, "validate_new_user"):
-            can_register = app.validate_new_user(user_record)
+            can_register = await app.validate_new_user(user_record)
 
         if not can_register and len(ALLOWED_GROUPS) > 0:
             can_register = "*" in ALLOWED_GROUPS or \
