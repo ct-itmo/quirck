@@ -62,15 +62,23 @@ async def sso_callback(request: Request) -> Response:
 
     if "isu" not in user_info:
         return RedirectResponse(f"{request.url_for('auth:failed')}?error=isu", status_code=303)
-    
+
     user_record = parse_user(user_info)
 
     database: AsyncSession = request.scope["db"]
     user = await database.scalar(select(User).where(User.id == user_record["id"]))
 
     if user is None:
-        if ALLOWED_GROUPS != ["*"] and ("groups" not in user_info or \
-            all(group["name"] not in ALLOWED_GROUPS for group in user_info["groups"])):
+        can_register = False
+
+        if not can_register and hasattr(app, "validate_new_user"):
+            can_register = app.validate_new_user(user_record)
+
+        if not can_register and len(ALLOWED_GROUPS) > 0:
+            can_register = "*" in ALLOWED_GROUPS or \
+                "groups" in user_info and any(group["name"] in ALLOWED_GROUPS for group in user_info["groups"])
+
+        if not can_register:
             return RedirectResponse(f"{request.url_for('auth:failed')}?error=group", status_code=303)
 
     statement = insert(User).values([user_record])
@@ -85,7 +93,7 @@ async def sso_callback(request: Request) -> Response:
     user = (await database.scalars(statement, execution_options={"populate_existing": True})).one()
 
     request.session["user_id"] = user.id
-    
+
     return RedirectResponse(request.url_for(app.main_route), status_code=303)
 
 
