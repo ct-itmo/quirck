@@ -6,19 +6,19 @@ authors = ["Nikita Sychev"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-starlette = "^0.37.2"
-uvicorn = "^0.30.1"
+starlette = "^0.39.0"
+uvicorn = "^0.30.6"
 Jinja2 = "^3.1.4"
-python-multipart = "^0.0.9"
-aioboto3 = "^13.1.0"
-httpx = "^0.27.0"
-SQLAlchemy = {version = "^2.0.31", extras = ["asyncio", "mypy"]}
+python-multipart = "^0.0.10"
+aioboto3 = "^13.1.1"
+httpx = "^0.27.2"
+SQLAlchemy = {version = "^2.0.35", extras = ["asyncio", "mypy"]}
 asyncpg = "^0.29.0"
-gunicorn = "^22.0.0"
+gunicorn = "^23.0.0"
 itsdangerous = "^2.2.0"
-PyJWT = {extras = ["crypto"], version = "^2.8.0"}
-cryptography = "^42.0.8"
-aiodocker = "^0.22.0"
+PyJWT = {extras = ["crypto"], version = "^2.9.0"}
+cryptography = "^43.0.1"
+aiodocker = "^0.23.0"
 Starlette-WTF = "^0.4.5"
 pytz = "*"
 
