@@ -32,9 +32,11 @@ def parse_user(user_info: dict[str, Any]) -> dict[str, Any]:
     else:
         group = None
 
+    name = f"{user_info.get('family_name')} {user_info.get('given_name', '')} {user_info.get('middle_name', '')}".strip() or user_info["name"]
+
     return {
         "id": user_info["isu"],
-        "name": user_info["name"],
+        "name": name,
         "group": group
     }
 
