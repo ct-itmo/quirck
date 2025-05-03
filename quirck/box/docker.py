@@ -24,10 +24,11 @@ async def create_network(user_id: int, network: NetworkMeta) -> DockerNetwork:
     async with aiodocker.Docker() as client:
         return await client.networks.create({
             "Name": get_full_object_name(user_id, network.name),
-            "Driver": "nsychev/katharanp:amd64",
+            "Driver": "kathara/katharanp:amd64",
             "IPAM": {"Driver": "null"},
             "Labels": {"user_id": f"{user_id}"},
-            "CheckDuplicate": True
+            "CheckDuplicate": True,
+            "EnableIPv6": True,
         })
 
 
@@ -111,7 +112,7 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
                 "Container": box.id,
                 "EndpointConfig": {
                     "MacAddress": mac_address,
-                    "DriverOpts": {"org.kathara.katharanp.mac": mac_address}
+                    "DriverOpts": {"kathara.mac_addr": mac_address}
                 } if mac_address else {}
             })
 
@@ -147,7 +148,7 @@ async def lock_meta(session: AsyncSession, user_id: int, chapter: str | None, as
     meta.state = DockerState.IN_PROGRESS
 
     await session.commit()
-    
+
     return meta
 
 
@@ -180,10 +181,10 @@ async def launch(session: AsyncSession, meta: DockerMeta, deployment: Deployment
 
     for network in deployment.networks:
         await create_network(meta.user_id, network)
-    
+
     for container in deployment.containers:
         await run_container(meta, container)
-    
+
     meta.state = DockerState.READY
     await session.commit()
 
