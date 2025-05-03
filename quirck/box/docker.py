@@ -32,6 +32,16 @@ async def create_network(user_id: int, network: NetworkMeta) -> DockerNetwork:
         })
 
 
+def kathara_endpoint_config(mac_address: str | None) -> dict[str, Any] | None:
+    return {
+        "MacAddress": mac_address,
+        "DriverOpts": {
+            "kathara.mac_addr": mac_address,
+            "com.docker.network.endpoint.sysctls": "net.ipv6.conf.IFNAME.disable_ipv6=0"
+        }
+    } if mac_address else None
+
+
 async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerContainer:
     environment: dict[str, Any] = {"USER_ID": meta.user_id}
     environment.update(container.environment)
@@ -57,6 +67,16 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
     if container.bridge:
         # If this container should be bridged to host, we choose bridge
         host_options["NetworkMode"] = "bridge"
+        options["NetworkingConfig"] = {
+            "EndpointsConfig": {
+                "bridge": {
+                    "DriverOpts": {
+                        "com.docker.network.endpoint.ifname": "ext"
+                    }
+                }
+            }
+        }
+
         networks = container.networks
     else:
         # Otherwise, we choose any of required networks
@@ -64,11 +84,9 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
 
         first_net_name, first_net_mac = first_net
         host_options["NetworkMode"] = get_full_object_name(meta.user_id, first_net_name)
-        if first_net_mac:
-            options["MacAddress"] = first_net_mac
         options["NetworkingConfig"] = {
             "EndpointsConfig": {
-                get_full_object_name(meta.user_id, first_net_name): {}
+                get_full_object_name(meta.user_id, first_net_name): kathara_endpoint_config(first_net_mac)
             }
         }
 
@@ -110,10 +128,7 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
             network = await client.networks.get(get_full_object_name(meta.user_id, network_name))
             await network.connect({
                 "Container": box.id,
-                "EndpointConfig": {
-                    "MacAddress": mac_address,
-                    "DriverOpts": {"kathara.mac_addr": mac_address}
-                } if mac_address else {}
+                "EndpointConfig": kathara_endpoint_config(mac_address)
             })
 
         await box.start()

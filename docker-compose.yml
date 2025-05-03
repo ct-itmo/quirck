@@ -14,6 +14,7 @@ services:
       - POSTGRES_PASSWORD=quirck
     ports:
       - "127.0.0.1:12005:5432"
+    restart: unless-stopped
   s3:
     image: minio/minio
     ports:
