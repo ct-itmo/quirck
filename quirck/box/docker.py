@@ -32,13 +32,17 @@ async def create_network(user_id: int, network: NetworkMeta) -> DockerNetwork:
         })
 
 
-def kathara_endpoint_config(mac_address: str | None) -> dict[str, Any] | None:
-    return {
+def kathara_endpoint_config(mac_address: str | None) -> dict[str, Any]:
+    config = {
         "DriverOpts": {
-            "kathara.mac_addr": mac_address,
             "com.docker.network.endpoint.sysctls": "net.ipv6.conf.IFNAME.disable_ipv6=0"
         }
-    } if mac_address else None
+    }
+
+    if mac_address is not None:
+        config["DriverOpts"]["kathara.mac_addr"] = mac_address
+
+    return config
 
 
 async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerContainer:
