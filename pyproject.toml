@@ -1,28 +1,37 @@
-[tool.poetry]
+[project]
 name = "quirck"
-version = "2023.1"
+version = "2026.1"
 description = "Personalized Docker Assignment Platform"
-authors = ["Nikita Sychev"]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aioboto3>=15.5.0",
+    "aiodocker>=0.26.0",
+    "asyncpg>=0.31.0",
+    "cryptography>=46.0.5",
+    "gunicorn>=25.1.0",
+    "httpx>=0.28.1",
+    "itsdangerous>=2.2.0",
+    "jinja2>=3.1.6",
+    "pyjwt[crypto]>=2.12.1",
+    "python-multipart>=0.0.22",
+    "pytz",
+    "sqlalchemy[asyncio]>=2.0.48",
+    "starlette>=0.52.1",
+    "starlette-wtf>=0.4.5",
+    "uvicorn>=0.41.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-starlette = "^0.46.1"
-uvicorn = "^0.34.0"
-Jinja2 = "^3.1.6"
-python-multipart = "^0.0.20"
-aioboto3 = "^14.1.0"
-httpx = "^0.28.1"
-SQLAlchemy = {version = "^2.0.40", extras = ["asyncio", "mypy"]}
-asyncpg = "^0.30.0"
-gunicorn = "^23.0.0"
-itsdangerous = "^2.2.0"
-PyJWT = {extras = ["crypto"], version = "^2.10.1"}
-cryptography = "^44.0.2"
-aiodocker = "^0.24.0"
-Starlette-WTF = "^0.4.5"
-pytz = "*"
-
+[dependency-groups]
+dev = [
+    "ruff>=0.15.6",
+    "ty>=0.0.23",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "quirck"
+module-root = ""

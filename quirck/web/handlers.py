@@ -1,5 +1,4 @@
 import traceback
-from typing import Any
 
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
