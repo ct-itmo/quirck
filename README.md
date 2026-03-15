@@ -6,7 +6,7 @@
 
 Зависимости:
 
-1. Python 3.7+, [Poetry](https://python-poetry.org/docs/)
+1. Python 3.10+, [uv](https://docs.astral.sh/uv/)
 2. Docker
 3. PostgreSQL
 4. S3-совместимое хранилище
