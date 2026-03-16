@@ -192,7 +192,7 @@ async def clean(user_id: int) -> None:
 async def launch(session: AsyncSession, meta: DockerMeta, deployment: Deployment) -> None:
     """Expects that lock is taken elsewhere."""
 
-    assert(meta.state == DockerState.IN_PROGRESS)
+    assert meta.state == DockerState.IN_PROGRESS
 
     await clean(meta.user_id)
 
@@ -211,14 +211,22 @@ async def launch(session: AsyncSession, meta: DockerMeta, deployment: Deployment
     await session.commit()
 
 
-async def stop(session: AsyncSession, user_id: int) -> None:
-    meta = await lock_meta(session, user_id, None)
+async def stop_locked(session: AsyncSession, meta: DockerMeta) -> None:
+    """Expects that lock is taken elsewhere."""
 
-    await clean(user_id)
+    assert meta.state == DockerState.IN_PROGRESS
+
+    await clean(meta.user_id)
 
     meta.state = DockerState.DISABLED
     meta.changed_at = datetime.now(timezone.utc)
     await session.commit()
+
+
+async def stop(session: AsyncSession, user_id: int) -> None:
+    meta = await lock_meta(session, user_id, None)
+
+    stop_locked(session, meta)
 
 
 async def stop_all(session: AsyncSession, chapter: str | None = None) -> None:
