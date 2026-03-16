@@ -98,7 +98,7 @@ async def main():
 
     try:
         async with session_factory() as session:
-            ready_containers = find_active_dockers(session)
+            ready_containers = await find_active_dockers(session)
             for docker in ready_containers:
                 await update_client_stats(session, docker)
 
