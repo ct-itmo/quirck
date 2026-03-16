@@ -1,15 +1,18 @@
 import logging
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import aiodocker
 from aiodocker.containers import DockerContainer
+from aiodocker.execs import Exec
 from aiodocker.networks import DockerNetwork
-from sqlalchemy import select
+from attr import dataclass
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from quirck.box.exception import DockerConflict
 from quirck.box.meta import ContainerMeta, Deployment, NetworkMeta
-from quirck.box.model import DockerMeta, DockerState
+from quirck.box.model import DockerClientStats, DockerMeta, DockerState
 from quirck.box.vpn import generate_vpn
 from quirck.core import config
 
@@ -204,6 +207,7 @@ async def launch(session: AsyncSession, meta: DockerMeta, deployment: Deployment
         await run_container(meta, container)
 
     meta.state = DockerState.READY
+    meta.changed_at = datetime.now(timezone.utc)
     await session.commit()
 
 
@@ -213,6 +217,7 @@ async def stop(session: AsyncSession, user_id: int) -> None:
     await clean(user_id)
 
     meta.state = DockerState.DISABLED
+    meta.changed_at = datetime.now(timezone.utc)
     await session.commit()
 
 
@@ -230,4 +235,249 @@ async def stop_all(session: AsyncSession, chapter: str | None = None) -> None:
             logger.warning("Could not stop %s due to lock", candidate.user_id)
 
 
-__all__ = ["launch", "stop", "stop_all"]
+class ExecResult:
+    exit_code: int
+    stdout: bytes = b""
+    stderr: bytes = b""
+
+
+async def exec_command(execution: Exec) -> ExecResult:
+    result = ExecResult()
+
+    async with execution.start(detach=False) as stream:
+        while True:
+            msg = await stream.read_out()
+            if msg is None:
+                break
+            if msg.stream == 1:
+                result.stdout += msg.data
+            elif msg.stream == 2:
+                result.stderr += msg.data
+            else:
+                raise KeyError(f"Unknown stream type: {msg.stream}")
+
+    inspect = await execution.inspect()
+    result.exit_code = inspect["ExitCode"]
+
+    return result
+
+
+@dataclass
+class ClientStatPoint:
+    client_ip: str
+    connected_at: datetime
+    bytes_recv: int
+    bytes_sent: int
+
+
+async def update_client_stats(session: AsyncSession, docker: DockerMeta) -> None:
+    """
+    Update the client statistics for the VPN container of a given user.
+    """
+    async with aiodocker.Docker() as client:
+        containers = await client.containers.list(
+            filters={
+                "name": [get_full_object_name(docker.user_id, "vpn")]
+            }
+        )
+
+        if not containers:
+            return
+
+        container = containers[0]
+
+        execution = await container.exec(["/bin/cat", "/openvpn-status"])
+        result = await exec_command(execution)
+
+        if result.exit_code != 0:
+            logger.error("Failed to get VPN status for user %d: %s", docker.user_id, result.stderr.decode(errors="replace"))
+            return
+
+        lines = result.stdout.decode('utf-8').strip().split('\n')
+
+        in_client_list = False
+        client_records: list[ClientStatPoint] = []
+
+        for line in lines:
+            if line.startswith('Common Name,Real Address'):
+                in_client_list = True
+                continue
+            elif line.startswith('ROUTING TABLE'):
+                in_client_list = False
+                break
+
+            if in_client_list and line.strip():
+                parts = line.split(',')
+                if len(parts) >= 5:
+                    client_ip = parts[1]
+                    bytes_received = int(parts[2])
+                    bytes_sent = int(parts[3])
+                    connected_since = parts[4]
+
+                    connected_at = datetime.strptime(connected_since, '%Y-%m-%d %H:%M:%S')
+                    connected_at = connected_at.replace(tzinfo=timezone.utc)
+
+                    client_records.append(
+                        ClientStatPoint(
+                            client_ip=client_ip,
+                            connected_at=connected_at,
+                            bytes_recv=bytes_received,
+                            bytes_sent=bytes_sent
+                        )
+                    )
+                else:
+                    logger.warning("Unexpected line format in VPN status for user %d: %s", docker.user_id, line)
+
+        for record in client_records:
+            stats = DockerClientStats(
+                docker_id=docker.port,
+                client_ip=record.client_ip,
+                connected_at=record.connected_at,
+                bytes_recv=record.bytes_recv,
+                bytes_sent=record.bytes_sent
+            )
+            session.add(stats)
+
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=60)
+        await session.execute(
+            delete(DockerClientStats).where(
+                DockerClientStats.docker_id == docker.port,
+                DockerClientStats.recorded_at < cutoff_time
+            )
+        )
+
+        await session.commit()
+
+
+async def find_instances_to_reap(
+    session: AsyncSession,
+    reap_older_than_minutes: int | None = 24 * 60,
+    reap_disconnected_for_minutes: int | None = 60,
+    reap_low_traffic_for_minutes: int | None = 60,
+    reap_inactive_if_older: int = 90,
+) -> list[int]:
+    """
+    Find containers if one of following criterias is true:
+
+    Criteria 1. The container has been running for more than `reap_older_than_minutes` minutes (if set).
+
+    Criteria 2. The container has been running for more than `reap_inactive_if_older` minutes and either:
+     - no clients connected in last `reap_disconnected_for_minutes` minutes (if set)
+     - in last `reap_low_traffic_for_minutes` minutes (if set) there was low traffic throughput
+
+    Low traffic means that there is no client that sent plus received at least 1 KB/min for each minute for the last `reap_low_traffic_for_minutes` minutes.
+    If there are not enough data points (e.g. 5-minute frame), calculate the average.
+
+    For each container scheduled to reap, log the reason.
+    """
+
+    to_reap: list[int] = []
+    now = datetime.now(timezone.utc)
+
+    # Get all READY containers
+    ready_containers = (await session.scalars(
+        select(DockerMeta).where(DockerMeta.state == DockerState.READY)
+    )).all()
+
+    for docker in ready_containers:
+        running_minutes = (now - docker.changed_at).total_seconds() / 60
+
+        # Criteria 1: Running too long
+        if reap_older_than_minutes is not None and running_minutes > reap_older_than_minutes:
+            logger.info(
+                "Reaping container for user %d: running for %.1f minutes (threshold: %d)",
+                docker.user_id, running_minutes, reap_older_than_minutes
+            )
+            to_reap.append(docker.user_id)
+            continue
+
+        # Criteria 2: Old enough and inactive
+        if running_minutes > reap_inactive_if_older:
+            should_reap = False
+            reason = ""
+
+            # Check disconnection criteria
+            if reap_disconnected_for_minutes is not None:
+                cutoff_time = now - timedelta(minutes=reap_disconnected_for_minutes)
+                recent_stats = (await session.scalars(
+                    select(DockerClientStats)
+                    .where(
+                        DockerClientStats.docker_id == docker.port,
+                        DockerClientStats.recorded_at >= cutoff_time
+                    )
+                )).all()
+
+                if not recent_stats:
+                    should_reap = True
+                    reason = f"no clients connected in last {reap_disconnected_for_minutes} minutes"
+
+            # Check low traffic criteria (only if not already marked for reaping)
+            if not should_reap and reap_low_traffic_for_minutes is not None:
+                cutoff_time = now - timedelta(minutes=reap_low_traffic_for_minutes)
+                traffic_stats = (await session.scalars(
+                    select(DockerClientStats)
+                    .where(
+                        DockerClientStats.docker_id == docker.port,
+                        DockerClientStats.recorded_at >= cutoff_time
+                    )
+                    .order_by(DockerClientStats.recorded_at)
+                )).all()
+
+                if not traffic_stats:
+                    should_reap = True
+                    reason = f"no traffic data in last {reap_low_traffic_for_minutes} minutes"
+                else:
+                    # Group by (client_ip, connected_at) to identify unique sessions
+                    sessions: dict[tuple[str, datetime], list[DockerClientStats]] = {}
+                    for stat in traffic_stats:
+                        key = (stat.client_ip, stat.connected_at)
+                        if key not in sessions:
+                            sessions[key] = []
+                        sessions[key].append(stat)
+
+                    has_active_client = False
+                    for session_stats in sessions.values():
+                        if len(session_stats) >= 2:
+                            # Multiple data points - calculate throughput between first and last
+                            first = session_stats[0]
+                            last = session_stats[-1]
+
+                            time_diff_minutes = (last.recorded_at - first.recorded_at).total_seconds() / 60
+                            if time_diff_minutes > 0:
+                                total_bytes = (
+                                    (last.bytes_recv - first.bytes_recv) +
+                                    (last.bytes_sent - first.bytes_sent)
+                                )
+                                bytes_per_minute = total_bytes / time_diff_minutes
+
+                                # Threshold: 1 KB/min = 1024 bytes/min
+                                if bytes_per_minute >= 1024:
+                                    has_active_client = True
+                                    break
+                        else:
+                            # Single data point - calculate average since connection
+                            stat = session_stats[0]
+                            time_since_connect_minutes = (stat.recorded_at - stat.connected_at).total_seconds() / 60
+                            if time_since_connect_minutes > 0:
+                                total_bytes = stat.bytes_recv + stat.bytes_sent
+                                bytes_per_minute = total_bytes / time_since_connect_minutes
+
+                                if bytes_per_minute >= 1024:
+                                    has_active_client = True
+                                    break
+
+                    if not has_active_client:
+                        should_reap = True
+                        reason = f"low traffic in last {reap_low_traffic_for_minutes} minutes"
+
+            if should_reap:
+                logger.info(
+                    "Reaping container for user %d: running for %.1f minutes (inactive threshold: %d), %s",
+                    docker.user_id, running_minutes, reap_inactive_if_older, reason
+                )
+                to_reap.append(docker.user_id)
+
+    return to_reap
+
+
+__all__ = ["launch", "stop", "stop_all", "find_instances_to_reap", "update_client_stats"]

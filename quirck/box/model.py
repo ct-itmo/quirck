@@ -1,7 +1,8 @@
+from datetime import datetime
 import enum
 from typing import Any
 
-from sqlalchemy import BigInteger, Enum, ForeignKey, String, Sequence
+from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Index, String, Sequence, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,14 +28,33 @@ class DockerMeta(Base):
         nullable=False,
         unique=True
     )
-    # loads package networking.$chapter.docker, null for disabled
     chapter: Mapped[str | None] = mapped_column(String(40), nullable=True)
     state: Mapped[DockerState] = mapped_column(Enum(DockerState), nullable=False)
     vpn: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
 
     user = relationship("User", back_populates="docker_meta")
+    client_stats = relationship("DockerClientStats", back_populates="docker_meta")
+
+
+class DockerClientStats(Base):
+    __tablename__ = "docker_client_stats"
+    __table_args__ = (
+        Index("docker_client_stats_client", "docker_id", "client_ip", "connected_at"),
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    docker_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("docker.port", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
+    client_ip: Mapped[str] = mapped_column(String(64), nullable=False)
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
+    bytes_recv: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    bytes_sent: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    docker_meta = relationship("DockerMeta", back_populates="client_stats")
+
 
 User.docker_meta = relationship("DockerMeta", back_populates="user", uselist=False)
 
 
-__all__ = ["DockerState", "DockerMeta"]
+__all__ = ["DockerState", "DockerMeta", "DockerClientStats"]
