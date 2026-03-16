@@ -29,7 +29,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from quirck.box.docker import find_instances_to_reap, stop
+from quirck.box.docker import find_active_dockers, find_instances_to_reap, stop, update_client_stats
 from quirck.box.exception import DockerConflict
 from quirck.db.engine import get_engine
 from quirck.core.config import DATABASE_URL
@@ -98,6 +98,10 @@ async def main():
 
     try:
         async with session_factory() as session:
+            ready_containers = find_active_dockers()
+            for docker in ready_containers:
+                await update_client_stats(session, docker)
+
             # Find instances to reap
             user_ids_to_reap = await find_instances_to_reap(
                 session,

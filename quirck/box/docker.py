@@ -270,6 +270,12 @@ async def exec_command(execution: Exec) -> ExecResult:
     return result
 
 
+async def find_active_dockers(session: AsyncSession) -> list[DockerMeta]:
+    return (await session.scalars(
+        select(DockerMeta).where(DockerMeta.state == DockerState.READY)
+    )).all()
+
+
 @dataclass
 class ClientStatPoint:
     client_ip: str
@@ -383,9 +389,7 @@ async def find_instances_to_reap(
     now = datetime.now(timezone.utc)
 
     # Get all READY containers
-    ready_containers = (await session.scalars(
-        select(DockerMeta).where(DockerMeta.state == DockerState.READY)
-    )).all()
+    ready_containers = await find_active_dockers(session)
 
     for docker in ready_containers:
         running_minutes = (now - docker.changed_at).total_seconds() / 60
@@ -488,4 +492,4 @@ async def find_instances_to_reap(
     return to_reap
 
 
-__all__ = ["launch", "stop", "stop_all", "find_instances_to_reap", "update_client_stats"]
+__all__ = ["launch", "stop", "stop_all", "find_active_dockers", "find_instances_to_reap", "update_client_stats"]
