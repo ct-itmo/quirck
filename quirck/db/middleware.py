@@ -14,6 +14,7 @@ class DatabaseMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         match scope["type"]:
             case "lifespan":
+
                 async def receive_processed() -> Message:
                     message = await receive()
                     match message["type"]:
@@ -23,7 +24,7 @@ class DatabaseMiddleware:
                         case "lifespan.startup":
                             if self.create_tables:
                                 await create_tables(self.engine)
-                    
+
                     return message
 
                 return await self.app(scope, receive_processed, send)

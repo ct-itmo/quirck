@@ -14,10 +14,13 @@ class QuirckForm(StarletteForm):
 class AceEditorWidget(TextArea):
     def __call__(self, field, **kwargs):
         textarea_markup = super().__call__(field, **kwargs)
-        kwargs.setdefault('id', field.id)
-        return Markup(
-            f"""<div id="{kwargs['id']}_ace" class="ace">{escape(field._value())}</div>"""
-        ) + textarea_markup
+        kwargs.setdefault("id", field.id)
+        return (
+            Markup(
+                f"""<div id="{kwargs["id"]}_ace" class="ace">{escape(field._value())}</div>"""
+            )
+            + textarea_markup
+        )
 
 
 class AceEditorField(TextAreaField):

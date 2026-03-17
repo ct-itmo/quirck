@@ -13,28 +13,16 @@ class QuirckWorker(UvicornWorker):
             "version": 1,
             "disable_existing_loggers": False,
             "formatters": {
-                "default": {
-                    "format": "%(asctime)s [%(levelname)s] %(message)s"
-                }
+                "default": {"format": "%(asctime)s [%(levelname)s] %(message)s"}
             },
             "handlers": {
                 "console": {
                     "class": "logging.StreamHandler",
                     "formatter": "default",
-                    "stream": "ext://sys.stdout"
+                    "stream": "ext://sys.stdout",
                 }
             },
-            "loggers": {
-                "uvicorn": {
-                    "error": {
-                        "propagate": True
-                    }
-                }
-            },
-            "root": {
-                "level": "INFO",
-                "handlers": ["console"],
-                "propagate": False
-            }
-        }
+            "loggers": {"uvicorn": {"error": {"propagate": True}}},
+            "root": {"level": "INFO", "handlers": ["console"], "propagate": False},
+        },
     }

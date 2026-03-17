@@ -21,18 +21,23 @@ class AuthenticationMiddleware:
 
             if "user_id" in session:
                 db: AsyncSession = scope["db"]
-                user = (await db.scalars(
-                    select(User).where(User.id == session["user_id"])
-                )).one_or_none()
+                user = (
+                    await db.scalars(select(User).where(User.id == session["user_id"]))
+                ).one_or_none()
 
                 if user is None:
-                    logger.warn("Unknown user %d with valid session, logging out", session["user_id"])
+                    logger.warn(
+                        "Unknown user %d with valid session, logging out",
+                        session["user_id"],
+                    )
                     del session["user_id"]
 
                 scope["user"] = user
-            
+
             if "user_id" not in session:
-                response = TemplateResponse(Request(scope), "anonymous.html", status_code=403)
+                response = TemplateResponse(
+                    Request(scope), "anonymous.html", status_code=403
+                )
                 return await response(scope, receive, send)
 
         return await self.app(scope, receive, send)
@@ -48,7 +53,12 @@ class AdminMiddleware:
             user: User = scope["user"]
 
             if "origin_user_id" not in session and not user.is_admin:
-                response = TemplateResponse(Request(scope), "error.html", {"error": "Недостаточно прав"}, status_code=403)
+                response = TemplateResponse(
+                    Request(scope),
+                    "error.html",
+                    {"error": "Недостаточно прав"},
+                    status_code=403,
+                )
                 return await response(scope, receive, send)
 
             return await self.app(scope, receive, send)

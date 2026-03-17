@@ -17,8 +17,7 @@ S3_DEFAULT_BUCKET = config("S3_DEFAULT_BUCKET", cast=str)
 
 def get_session() -> aioboto3.Session:
     return aioboto3.Session(
-        aws_access_key_id=S3_ACCESS_KEY_ID,
-        aws_secret_access_key=S3_SECRET_ACCESS_KEY
+        aws_access_key_id=S3_ACCESS_KEY_ID, aws_secret_access_key=S3_SECRET_ACCESS_KEY
     )
 
 
@@ -27,16 +26,12 @@ def get_client():
         "s3",
         S3_REGION_NAME,
         endpoint_url=S3_ENDPOINT_URL,
-        config=botocore.client.Config(signature_version='s3v4')
+        config=botocore.client.Config(signature_version="s3v4"),
     )
 
 
 def get_resource():
-    return get_session().resource(
-        "s3",
-        S3_REGION_NAME,
-        endpoint_url=S3_ENDPOINT_URL
-    )
+    return get_session().resource("s3", S3_REGION_NAME, endpoint_url=S3_ENDPOINT_URL)
 
 
 async def list_files(bucket_name: str, folder: str, user_id: int) -> list[str]:
@@ -44,9 +39,9 @@ async def list_files(bucket_name: str, folder: str, user_id: int) -> list[str]:
 
     async with get_resource() as s3:
         bucket = await s3.Bucket(bucket_name)
-        
+
         return [
-            item.key[len(prefix):]
+            item.key[len(prefix) :]
             async for item in bucket.objects.filter(Prefix=prefix)
         ]
 
@@ -58,15 +53,14 @@ async def get_url(bucket_name: str, folder: str, user_id: int, filename: str) ->
         return await s3_client.generate_presigned_url(
             ClientMethod="get_object",
             HttpMethod="GET",
-            Params={
-                "Bucket": bucket_name,
-                "Key": path
-            },
-            ExpiresIn=3600
+            Params={"Bucket": bucket_name, "Key": path},
+            ExpiresIn=3600,
         )
 
 
-async def upload_file(bucket_name: str, folder: str, user_id: int, filename: str, source: Path) -> str:
+async def upload_file(
+    bucket_name: str, folder: str, user_id: int, filename: str, source: Path
+) -> str:
     path = f"{folder}/{user_id}/{filename}"
 
     async with get_resource() as s3:
@@ -77,7 +71,9 @@ async def upload_file(bucket_name: str, folder: str, user_id: int, filename: str
     return path
 
 
-async def upload_bytes(bucket_name: str, folder: str, user_id: int, filename: str, content: bytes) -> str:
+async def upload_bytes(
+    bucket_name: str, folder: str, user_id: int, filename: str, content: bytes
+) -> str:
     path = f"{folder}/{user_id}/{filename}"
 
     async with get_resource() as s3:

@@ -15,7 +15,9 @@ template_env = jinja2.Environment(autoescape=True)
 
 
 @jinja2.pass_context
-def url_for(context: dict[str, typing.Any], name: str, **path_params: typing.Any) -> str:
+def url_for(
+    context: dict[str, typing.Any], name: str, **path_params: typing.Any
+) -> str:
     request: Request = context["request"]
     return str(request.url_for(name, **path_params))
 
@@ -49,11 +51,9 @@ def mapattr_filter(objects, *attributes):
     if len(attributes) == 0:
         return list(objects)
 
-    return mapattr_filter(map(
-        lambda obj: jinja_getattr(obj, attributes[0]),
-        objects
-    ), *attributes[1:])
-
+    return mapattr_filter(
+        map(lambda obj: jinja_getattr(obj, attributes[0]), objects), *attributes[1:]
+    )
 
 
 template_env.globals["url_for"] = url_for
@@ -78,13 +78,11 @@ class TemplateResponse(Response):
     ):
         if template_env.loader is None:
             from quirck.core.module import app
+
             template_env.loader = jinja2.FileSystemLoader(app.template_path)
 
         self.template = template_env.get_template(template_name)
-        self.context = dict(
-            **context,
-            request=request
-        )
+        self.context = dict(**context, request=request)
 
         for field in EXPOSED_SCOPE_FIELDS:
             if field in request.scope:
@@ -92,7 +90,7 @@ class TemplateResponse(Response):
 
         content = self.template.render(self.context)
         super().__init__(content, status_code, headers, media_type, background)
-    
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         await super().__call__(scope, receive, send)
 

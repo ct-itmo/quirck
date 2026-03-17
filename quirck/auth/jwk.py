@@ -15,6 +15,7 @@ CACHE_TTL = timedelta(hours=4)
 
 class JWKSError(ValueError): ...
 
+
 class JWTMalformedToken(ValueError): ...
 
 
@@ -71,7 +72,11 @@ class JWKS:
 
     async def fetch_keys(self, force_update: bool = False) -> bool:
         """Returns True if keys were updated and False if they were returned from cache."""
-        if not force_update and self.last_update and datetime.now() - self.last_update < CACHE_TTL:
+        if (
+            not force_update
+            and self.last_update
+            and datetime.now() - self.last_update < CACHE_TTL
+        ):
             return False
 
         self.last_update = datetime.now()
@@ -81,10 +86,7 @@ class JWKS:
         if response.status_code != httpx.codes.OK:
             raise JWKSError("JWKS server is unavailable")
 
-        self.key_cache = {
-            key["kid"]: key
-            for key in response.json()["keys"]
-        }
+        self.key_cache = {key["kid"]: key for key in response.json()["keys"]}
 
         return True
 
@@ -114,7 +116,7 @@ class JWKS:
             key.key,
             algorithms=[key.algorithm],
             issuer=await self.configuration.get_issuer(),
-            audience=self.audience
+            audience=self.audience,
         )
 
 

@@ -10,5 +10,5 @@ if __name__ == "__main__":
         factory=True,
         port=config.PORT,
         **QuirckWorker.CONFIG_KWARGS,
-        reload=config.DEBUG
+        reload=config.DEBUG,
     )

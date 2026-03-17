@@ -7,7 +7,7 @@ from aiodocker.containers import DockerContainer
 from aiodocker.execs import Exec
 from aiodocker.networks import DockerNetwork
 from attr import dataclass
-from sqlalchemy import delete, exists, select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from quirck.box.exception import DockerConflict
@@ -25,14 +25,16 @@ def get_full_object_name(user_id: int, name: str) -> str:
 
 async def create_network(user_id: int, network: NetworkMeta) -> DockerNetwork:
     async with aiodocker.Docker() as client:
-        return await client.networks.create({
-            "Name": get_full_object_name(user_id, network.name),
-            "Driver": "kathara/katharanp:amd64",
-            "IPAM": {"Driver": "null"},
-            "Labels": {"user_id": f"{user_id}"},
-            "CheckDuplicate": True,
-            "EnableIPv6": True,
-        })
+        return await client.networks.create(
+            {
+                "Name": get_full_object_name(user_id, network.name),
+                "Driver": "kathara/katharanp:amd64",
+                "IPAM": {"Driver": "null"},
+                "Labels": {"user_id": f"{user_id}"},
+                "CheckDuplicate": True,
+                "EnableIPv6": True,
+            }
+        )
 
 
 def kathara_endpoint_config(mac_address: str | None) -> dict[str, Any]:
@@ -75,11 +77,7 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
         host_options["NetworkMode"] = "bridge"
         options["NetworkingConfig"] = {
             "EndpointsConfig": {
-                "bridge": {
-                    "DriverOpts": {
-                        "com.docker.network.endpoint.ifname": "ext"
-                    }
-                }
+                "bridge": {"DriverOpts": {"com.docker.network.endpoint.ifname": "ext"}}
             }
         }
 
@@ -92,15 +90,15 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
         host_options["NetworkMode"] = get_full_object_name(meta.user_id, first_net_name)
         options["NetworkingConfig"] = {
             "EndpointsConfig": {
-                get_full_object_name(meta.user_id, first_net_name): kathara_endpoint_config(first_net_mac)
+                get_full_object_name(
+                    meta.user_id, first_net_name
+                ): kathara_endpoint_config(first_net_mac)
             }
         }
 
         networks = dict(other_tuples)
 
-    sysctls = {
-        "net.ipv6.conf.all.disable_ipv6": "0"
-    }
+    sysctls = {"net.ipv6.conf.all.disable_ipv6": "0"}
 
     if container.ipv6_forwarding:
         sysctls["net.ipv6.conf.all.forwarding"] = "1"
@@ -112,42 +110,45 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
                 "AttachStdout": False,
                 "AttachStderr": False,
                 "Image": container.image,
-                "Env": [
-                    f"{key}={value}"
-                    for key, value in environment.items()
-                ],
-                "Labels": {
-                    "user_id": f"{meta.user_id}",
-                    "chapter": meta.chapter
-                },
+                "Env": [f"{key}={value}" for key, value in environment.items()],
+                "Labels": {"user_id": f"{meta.user_id}", "chapter": meta.chapter},
                 "HostConfig": {
                     "CapAdd": ["NET_ADMIN", "NET_RAW"],
                     "Memory": container.mem_limit,
                     "Sysctls": sysctls,
-                    **host_options
+                    **host_options,
                 },
-                **options
-            }
+                **options,
+            },
         )
 
         for network_name, mac_address in networks.items():
-            network = await client.networks.get(get_full_object_name(meta.user_id, network_name))
-            await network.connect({
-                "Container": box.id,
-                "EndpointConfig": kathara_endpoint_config(mac_address)
-            })
+            network = await client.networks.get(
+                get_full_object_name(meta.user_id, network_name)
+            )
+            await network.connect(
+                {
+                    "Container": box.id,
+                    "EndpointConfig": kathara_endpoint_config(mac_address),
+                }
+            )
 
         await box.start()
 
     return box
 
 
-async def lock_meta(session: AsyncSession, user_id: int, chapter: str | None, assert_chapter: bool = False) -> DockerMeta:
-    meta = (await session.scalars(
-        select(DockerMeta)
-            .filter(DockerMeta.user_id == user_id)
-            .with_for_update()
-    )).one_or_none()
+async def lock_meta(
+    session: AsyncSession,
+    user_id: int,
+    chapter: str | None,
+    assert_chapter: bool = False,
+) -> DockerMeta:
+    meta = (
+        await session.scalars(
+            select(DockerMeta).filter(DockerMeta.user_id == user_id).with_for_update()
+        )
+    ).one_or_none()
 
     if assert_chapter and (meta is None or meta.chapter != chapter):
         # Close the transaction
@@ -155,7 +156,9 @@ async def lock_meta(session: AsyncSession, user_id: int, chapter: str | None, as
         raise DockerConflict()
 
     if meta is None:
-        meta = DockerMeta(user_id=user_id, chapter=chapter, state=DockerState.IN_PROGRESS)
+        meta = DockerMeta(
+            user_id=user_id, chapter=chapter, state=DockerState.IN_PROGRESS
+        )
         session.add(meta)
         await session.commit()
 
@@ -176,20 +179,21 @@ async def lock_meta(session: AsyncSession, user_id: int, chapter: str | None, as
 async def clean(user_id: int) -> None:
     async with aiodocker.Docker() as client:
         containers = await client.containers.list(
-            all=True,
-            filters={"label": [f"user_id={user_id}"]}
+            all=True, filters={"label": [f"user_id={user_id}"]}
         )
 
         for container in containers:
             await container.delete(force=True, v=True)
 
         for network in await client.networks.list(
-                filters={"label": f"user_id={user_id}"}
-            ):
+            filters={"label": f"user_id={user_id}"}
+        ):
             await DockerNetwork(client, network["Id"]).delete()
 
 
-async def launch(session: AsyncSession, meta: DockerMeta, deployment: Deployment) -> None:
+async def launch(
+    session: AsyncSession, meta: DockerMeta, deployment: Deployment
+) -> None:
     """Expects that lock is taken elsewhere."""
 
     assert meta.state == DockerState.IN_PROGRESS
@@ -271,9 +275,11 @@ async def exec_command(execution: Exec) -> ExecResult:
 
 
 async def find_active_dockers(session: AsyncSession) -> list[DockerMeta]:
-    return (await session.scalars(
-        select(DockerMeta).where(DockerMeta.state == DockerState.READY)
-    )).all()
+    return (
+        await session.scalars(
+            select(DockerMeta).where(DockerMeta.state == DockerState.READY)
+        )
+    ).all()
 
 
 @dataclass
@@ -290,9 +296,7 @@ async def update_client_stats(session: AsyncSession, docker: DockerMeta) -> None
     """
     async with aiodocker.Docker() as client:
         containers = await client.containers.list(
-            filters={
-                "name": [get_full_object_name(docker.user_id, "vpn")]
-            }
+            filters={"name": [get_full_object_name(docker.user_id, "vpn")]}
         )
 
         if not containers:
@@ -304,36 +308,44 @@ async def update_client_stats(session: AsyncSession, docker: DockerMeta) -> None
         result = await exec_command(execution)
 
         if result.exit_code != 0:
-            logger.error("Failed to get VPN status for user %d: %s", docker.user_id, result.stderr.decode(errors="replace"))
+            logger.error(
+                "Failed to get VPN status for user %d: %s",
+                docker.user_id,
+                result.stderr.decode(errors="replace"),
+            )
             return
 
-        lines = result.stdout.decode('utf-8', errors='replace').strip().split('\n')
+        lines = result.stdout.decode("utf-8", errors="replace").strip().split("\n")
 
         recorded_at: datetime = datetime.now(timezone.utc)
         in_client_list = False
 
         for line in lines:
-            if line.startswith('Updated,'):
-                recorded_at = datetime.strptime(line.split(',')[1], '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+            if line.startswith("Updated,"):
+                recorded_at = datetime.strptime(
+                    line.split(",")[1], "%Y-%m-%d %H:%M:%S"
+                ).replace(tzinfo=timezone.utc)
                 continue
 
-            if line.startswith('Common Name,Real Address'):
+            if line.startswith("Common Name,Real Address"):
                 in_client_list = True
                 continue
 
-            elif line.startswith('ROUTING TABLE'):
+            elif line.startswith("ROUTING TABLE"):
                 in_client_list = False
                 break
 
             if in_client_list and line.strip():
-                parts = line.split(',')
+                parts = line.split(",")
                 if len(parts) >= 5:
                     client_ip = parts[1]
                     bytes_received = int(parts[2])
                     bytes_sent = int(parts[3])
                     connected_since = parts[4]
 
-                    connected_at = datetime.strptime(connected_since, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
+                    connected_at = datetime.strptime(
+                        connected_since, "%Y-%m-%d %H:%M:%S"
+                    ).replace(tzinfo=timezone.utc)
 
                     stats = DockerClientStats(
                         docker_id=docker.port,
@@ -341,11 +353,15 @@ async def update_client_stats(session: AsyncSession, docker: DockerMeta) -> None
                         connected_at=connected_at,
                         bytes_recv=bytes_received,
                         bytes_sent=bytes_sent,
-                        recorded_at=recorded_at
+                        recorded_at=recorded_at,
                     )
                     session.add(stats)
                 else:
-                    logger.warning("Unexpected line format in VPN status for user %d: %s", docker.user_id, line)
+                    logger.warning(
+                        "Unexpected line format in VPN status for user %d: %s",
+                        docker.user_id,
+                        line,
+                    )
 
         await session.commit()
 
@@ -365,18 +381,19 @@ async def find_instances_to_reap(
     reap_inactive_if_older: int = 90,
 ) -> list[int]:
     """
-    Find containers if one of following criterias is true:
+    Finds containers if one of following criterias is true:
 
-    Criteria 1. The container has been running for more than `reap_older_than_minutes` minutes (if set).
+    Criteria 1. The container has been running for more than `reap_older_than_minutes`
+    minutes (if set).
 
-    Criteria 2. The container has been running for more than `reap_inactive_if_older` minutes and either:
+    Criteria 2. The container has been running for more than `reap_inactive_if_older`
+    minutes and either:
      - no clients connected in last `reap_disconnected_for_minutes` minutes (if set)
-     - in last `reap_low_traffic_for_minutes` minutes (if set) there was low traffic throughput
+     - in last `reap_low_traffic_for_minutes` minutes (if set) there was low traffic
+     throughput
 
-    Low traffic means that there is no client that sent plus received at least 1 KB/min for each minute for the last `reap_low_traffic_for_minutes` minutes.
-    If there are not enough data points (e.g. 5-minute frame), calculate the average.
-
-    For each container scheduled to reap, log the reason.
+    Low traffic means that there is no client that sent plus received at least 1 KB/min
+    in some recording during last `reap_low_traffic_for_minutes` minutes.
     """
 
     to_reap: list[int] = []
@@ -387,10 +404,15 @@ async def find_instances_to_reap(
     for docker in ready_containers:
         running_minutes = (now - docker.changed_at).total_seconds() / 60
 
-        if reap_older_than_minutes is not None and running_minutes > reap_older_than_minutes:
+        if (
+            reap_older_than_minutes is not None
+            and running_minutes > reap_older_than_minutes
+        ):
             logger.info(
                 "Reaping container for user %d: running for %.1f minutes (threshold: %d)",
-                docker.user_id, running_minutes, reap_older_than_minutes
+                docker.user_id,
+                running_minutes,
+                reap_older_than_minutes,
             )
             to_reap.append(docker.user_id)
             continue
@@ -404,12 +426,12 @@ async def find_instances_to_reap(
 
                 has_recent_stats = await session.scalar(
                     select(DockerClientStats)
-                        .where(
-                            DockerClientStats.docker_id == docker.port,
-                            DockerClientStats.recorded_at >= cutoff_time
-                        )
-                        .exists()
-                        .select()
+                    .where(
+                        DockerClientStats.docker_id == docker.port,
+                        DockerClientStats.recorded_at >= cutoff_time,
+                    )
+                    .exists()
+                    .select()
                 )
 
                 if not has_recent_stats:
@@ -418,14 +440,18 @@ async def find_instances_to_reap(
 
             if not should_reap and reap_low_traffic_for_minutes is not None:
                 cutoff_time = now - timedelta(minutes=reap_low_traffic_for_minutes)
-                traffic_stats = (await session.scalars(
-                    select(DockerClientStats)
-                    .where(
-                        DockerClientStats.docker_id == docker.port,
-                        DockerClientStats.recorded_at >= cutoff_time
+                traffic_stats = (
+                    await session.scalars(
+                        select(DockerClientStats)
+                        .where(
+                            DockerClientStats.docker_id == docker.port,
+                            DockerClientStats.recorded_at >= cutoff_time,
+                        )
+                        .order_by(
+                            DockerClientStats.client_ip, DockerClientStats.recorded_at
+                        )
                     )
-                    .order_by(DockerClientStats.client_ip, DockerClientStats.recorded_at)
-                )).all()
+                ).all()
 
                 has_active_client = False
 
@@ -434,33 +460,51 @@ async def find_instances_to_reap(
                 last_traffic: int | None = None
 
                 for point in traffic_stats:
-                    current_client_id = (point.client_ip, point.connected_at)                        
+                    current_client_id = (point.client_ip, point.connected_at)
 
-                    if last_client_id == current_client_id and last_timestamp is not None and last_traffic is not None:
+                    if (
+                        last_client_id == current_client_id
+                        and last_timestamp is not None
+                        and last_traffic is not None
+                    ):
                         traffic = (point.bytes_recv + point.bytes_sent) - last_traffic
                         time_diff = (point.recorded_at - last_timestamp).total_seconds()
 
-                        if time_diff > 0 and traffic / time_diff >= 17:  # 17 bytes/sec is about 1 KB/min
+                        if (
+                            time_diff > 0 and traffic / time_diff >= 17
+                        ):  # 17 bytes/sec is about 1 KB/min
                             has_active_client = True
                             break
-                    
+
                     last_client_id = current_client_id
                     last_timestamp = point.recorded_at
                     last_traffic = point.bytes_recv + point.bytes_sent
 
-
                 if not has_active_client:
                     should_reap = True
-                    reason = f"low traffic in last {reap_low_traffic_for_minutes} minutes"
+                    reason = (
+                        f"low traffic in last {reap_low_traffic_for_minutes} minutes"
+                    )
 
             if should_reap:
                 logger.info(
                     "Reaping container for user %d: running for %.1f minutes (inactive threshold: %d), %s",
-                    docker.user_id, running_minutes, reap_inactive_if_older, reason
+                    docker.user_id,
+                    running_minutes,
+                    reap_inactive_if_older,
+                    reason,
                 )
                 to_reap.append(docker.user_id)
 
     return to_reap
 
 
-__all__ = ["launch", "stop", "stop_all", "cleanup_client_stats", "find_active_dockers", "find_instances_to_reap", "update_client_stats"]
+__all__ = [
+    "launch",
+    "stop",
+    "stop_all",
+    "cleanup_client_stats",
+    "find_active_dockers",
+    "find_instances_to_reap",
+    "update_client_stats",
+]

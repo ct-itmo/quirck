@@ -22,7 +22,7 @@ class OAuthException(ValueError): ...
 class OAuthConfiguration:
     async def get_access_token_url(self) -> str:
         raise NotImplementedError()
-    
+
     async def get_authorize_url(self) -> str:
         raise NotImplementedError()
 
@@ -37,7 +37,9 @@ class OAuthConfiguration:
 
 
 class StaticOAuthConfiguration(OAuthConfiguration):
-    def __init__(self, access_token_url: str, authorize_url: str, issuer: str | None = None):
+    def __init__(
+        self, access_token_url: str, authorize_url: str, issuer: str | None = None
+    ):
         self.access_token_url = access_token_url
         self.authorize_url = authorize_url
         self.issuer = issuer
@@ -67,7 +69,9 @@ class WellKnownConfiguration(OAuthConfiguration):
 
         response = httpx.get(self.server_metadata_url)
         if response.status_code != httpx.codes.OK:
-            raise OAuthException(f"Remote server returned error code {response.status_code} for {self.server_metadata_url}")
+            raise OAuthException(
+                f"Remote server returned error code {response.status_code} for {self.server_metadata_url}"
+            )
 
         self.metadata = response.json()
 
@@ -92,18 +96,30 @@ class WellKnownConfiguration(OAuthConfiguration):
         return self.metadata["end_session_endpoint"]
 
 
-
 class OAuthClient:
-    def __init__(self, configuration: OAuthConfiguration, client_id: str, client_secret: str, **kwargs):
+    def __init__(
+        self,
+        configuration: OAuthConfiguration,
+        client_id: str,
+        client_secret: str,
+        **kwargs,
+    ):
         self.client_id = client_id
         self.client_secret = client_secret
         self.configuration = configuration
 
-    async def authorize_redirect(self, request: Request, *, redirect_uri: str, scope: str,
-                                 response_type: str = "code", require_prompt: bool = False) -> RedirectResponse:
+    async def authorize_redirect(
+        self,
+        request: Request,
+        *,
+        redirect_uri: str,
+        scope: str,
+        response_type: str = "code",
+        require_prompt: bool = False,
+    ) -> RedirectResponse:
         base_url = await self.configuration.get_authorize_url()
 
-        state = secrets.token_hex(32) # CSRF protection as of RFC6749
+        state = secrets.token_hex(32)  # CSRF protection as of RFC6749
         request.session["state"] = state
 
         query_params: dict[str, str] = {
@@ -111,17 +127,21 @@ class OAuthClient:
             "redirect_uri": redirect_uri,
             "state": state,
             "scope": scope,
-            "response_type": response_type
+            "response_type": response_type,
         }
 
         if require_prompt:
             query_params["prompt"] = "login"
 
-        return RedirectResponse(f"{base_url}?{urlencode(query_params)}", status_code=303)
+        return RedirectResponse(
+            f"{base_url}?{urlencode(query_params)}", status_code=303
+        )
 
-    async def process_code_flow(self, request: Request, redirect_uri: str) -> dict[str, Any]:
+    async def process_code_flow(
+        self, request: Request, redirect_uri: str
+    ) -> dict[str, Any]:
         base_url = await self.configuration.get_access_token_url()
-        
+
         session_state = request.session.get("state", None)
         response_state = request.query_params.get("state", None)
 
@@ -138,30 +158,32 @@ class OAuthClient:
             "client_secret": self.client_secret,
             "code": code,
             "state": response_state,
-            "redirect_uri": redirect_uri
+            "redirect_uri": redirect_uri,
         }
 
         response = httpx.post(
-            base_url,
-            data=token_request,
-            headers={"Accept": "application/json"}
+            base_url, data=token_request, headers={"Accept": "application/json"}
         )
 
         if response.status_code != httpx.codes.OK:
             logger.warn("URL: %s, Response: %s", response.status_code, response.text)
-            raise OAuthException(f"Remote server returned error code {response.status_code}")
+            raise OAuthException(
+                f"Remote server returned error code {response.status_code}"
+            )
 
         token_response = response.json()
 
         return token_response
 
 
-sso_configuration = WellKnownConfiguration(server_metadata_url=config("SSO_CONFIGURATION_URL", cast=str))
+sso_configuration = WellKnownConfiguration(
+    server_metadata_url=config("SSO_CONFIGURATION_URL", cast=str)
+)
 
 sso_client = OAuthClient(
     configuration=sso_configuration,
     client_id=config("SSO_CLIENT_ID", cast=str),
-    client_secret=config("SSO_CLIENT_SECRET", cast=str)
+    client_secret=config("SSO_CLIENT_SECRET", cast=str),
 )
 
 

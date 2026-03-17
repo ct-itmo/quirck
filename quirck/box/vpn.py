@@ -2,10 +2,18 @@ from datetime import datetime, timedelta
 
 from cryptography import x509
 from cryptography.x509.oid import NameOID
-from cryptography.x509.extensions import AuthorityKeyIdentifier, BasicConstraints, SubjectKeyIdentifier
+from cryptography.x509.extensions import (
+    AuthorityKeyIdentifier,
+    BasicConstraints,
+    SubjectKeyIdentifier,
+)
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
+from cryptography.hazmat.primitives.serialization import (
+    Encoding,
+    PrivateFormat,
+    NoEncryption,
+)
 
 from quirck.box.config import VPN_HOST
 from quirck.core import config, s3
@@ -71,17 +79,19 @@ def generate_key_pair(
     curve: ec.EllipticCurve,
     common_name: str,
     signing_key: ec.EllipticCurvePrivateKey | None,
-    signing_issuer: x509.Name | None
+    signing_issuer: x509.Name | None,
 ) -> tuple[ec.EllipticCurvePrivateKey, x509.Certificate]:
     private_key = ec.generate_private_key(curve)
 
-    subject_name = x509.Name([
-        x509.NameAttribute(NameOID.COUNTRY_NAME, "RU"),
-        x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "78"),
-        x509.NameAttribute(NameOID.LOCALITY_NAME, "Saint Petersburg"),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "ITMO University"),
-        x509.NameAttribute(NameOID.COMMON_NAME, common_name)
-    ])
+    subject_name = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "RU"),
+            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "78"),
+            x509.NameAttribute(NameOID.LOCALITY_NAME, "Saint Petersburg"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "ITMO University"),
+            x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+        ]
+    )
 
     assert (signing_issuer is None) == (signing_key is None)
     is_ca = signing_issuer is None
@@ -91,15 +101,22 @@ def generate_key_pair(
     if signing_key is None:
         signing_key = private_key
 
-    chain = (x509.CertificateBuilder()
-             .subject_name(subject_name)
-             .issuer_name(signing_issuer)
-             .public_key(private_key.public_key())
-             .serial_number(x509.random_serial_number())
-             .not_valid_before(datetime.utcnow())
-             .not_valid_after(datetime.utcnow() + timedelta(days=3650))
-             .add_extension(AuthorityKeyIdentifier.from_issuer_public_key(signing_key.public_key()), False)
-             .add_extension(SubjectKeyIdentifier.from_public_key(private_key.public_key()), False))
+    chain = (
+        x509.CertificateBuilder()
+        .subject_name(subject_name)
+        .issuer_name(signing_issuer)
+        .public_key(private_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.utcnow())
+        .not_valid_after(datetime.utcnow() + timedelta(days=3650))
+        .add_extension(
+            AuthorityKeyIdentifier.from_issuer_public_key(signing_key.public_key()),
+            False,
+        )
+        .add_extension(
+            SubjectKeyIdentifier.from_public_key(private_key.public_key()), False
+        )
+    )
 
     if is_ca:
         chain = chain.add_extension(BasicConstraints(ca=True, path_length=None), True)
@@ -122,44 +139,52 @@ async def generate_vpn(user_id: int, port: int):
     curve = ec.SECP256R1()
     prefix = f"quirck-{config.APP_MODULE}-{user_id}"
 
-    ca_key, ca_certificate = generate_key_pair(curve, f"{prefix}-server", signing_key=None, signing_issuer=None)
-
-    client_key, client_certificate = generate_key_pair(
-        curve, f"{prefix}-client",
-        signing_issuer=ca_certificate.issuer,
-        signing_key=ca_key
+    ca_key, ca_certificate = generate_key_pair(
+        curve, f"{prefix}-server", signing_key=None, signing_issuer=None
     )
 
-    for platform, directives in [
-        ("win", ""),
-        ("linux", LINUX_DIRECTIVES)
-    ]:
+    client_key, client_certificate = generate_key_pair(
+        curve,
+        f"{prefix}-client",
+        signing_issuer=ca_certificate.issuer,
+        signing_key=ca_key,
+    )
+
+    for platform, directives in [("win", ""), ("linux", LINUX_DIRECTIVES)]:
         client_config = BASE.format(
-            host=VPN_HOST, port=port, directives=directives,
-            ca_certificate=format_pem_for_conf(ca_certificate.public_bytes(Encoding.PEM)),
-            client_certificate=format_pem_for_conf(client_certificate.public_bytes(Encoding.PEM)),
+            host=VPN_HOST,
+            port=port,
+            directives=directives,
+            ca_certificate=format_pem_for_conf(
+                ca_certificate.public_bytes(Encoding.PEM)
+            ),
+            client_certificate=format_pem_for_conf(
+                client_certificate.public_bytes(Encoding.PEM)
+            ),
             client_key=format_pem_for_conf(
                 client_key.private_bytes(
                     Encoding.PEM,
                     PrivateFormat.TraditionalOpenSSL,
-                    encryption_algorithm=NoEncryption()
+                    encryption_algorithm=NoEncryption(),
                 )
-            )
+            ),
         )
 
         await s3.upload_bytes(
             s3.S3_DEFAULT_BUCKET,
-            "vpn", user_id, f"config-{platform}.ovpn",
-            client_config.encode()
+            "vpn",
+            user_id,
+            f"config-{platform}.ovpn",
+            client_config.encode(),
         )
-    
+
     return {
         "CERT": format_pem_for_env(ca_certificate.public_bytes(Encoding.PEM)),
         "KEY": format_pem_for_env(
             ca_key.private_bytes(
                 Encoding.PEM,
                 PrivateFormat.TraditionalOpenSSL,
-                encryption_algorithm=NoEncryption()
+                encryption_algorithm=NoEncryption(),
             )
-        )
+        ),
     }

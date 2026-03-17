@@ -13,10 +13,12 @@ def http_exception_handler(request: Request, exc: HTTPException) -> Response:
         request,
         "error.html",
         {
-            "traceback": traceback.format_exception(type(exc), exc, exc.__traceback__) if config.DEBUG else None,
-            "error": exc.detail
+            "traceback": traceback.format_exception(type(exc), exc, exc.__traceback__)
+            if config.DEBUG
+            else None,
+            "error": exc.detail,
         },
-        status_code=exc.status_code
+        status_code=exc.status_code,
     )
 
 
@@ -28,7 +30,7 @@ def base_exception_handler(request: Request, exc: Exception) -> Response:
             "traceback": exc if config.DEBUG else None,
             "error": "На сервере проблема. Повторите запрос или напишите в чат.",
         },
-        status_code=500
+        status_code=500,
     )
 
 
