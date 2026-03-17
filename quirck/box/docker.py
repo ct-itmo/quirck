@@ -352,7 +352,7 @@ async def update_client_stats(session: AsyncSession, docker: DockerMeta) -> None
             )
             session.add(stats)
 
-        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=60)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(days=7)
         await session.execute(
             delete(DockerClientStats).where(
                 DockerClientStats.docker_id == docker.port,
