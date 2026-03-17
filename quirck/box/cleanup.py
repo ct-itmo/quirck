@@ -29,7 +29,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from quirck.box.docker import find_active_dockers, find_instances_to_reap, stop, update_client_stats
+from quirck.box.docker import cleanup_client_stats, find_active_dockers, find_instances_to_reap, stop, update_client_stats
 from quirck.box.exception import DockerConflict
 from quirck.db.engine import get_engine
 from quirck.core.config import DATABASE_URL
@@ -101,6 +101,7 @@ async def main():
             ready_containers = await find_active_dockers(session)
             for docker in ready_containers:
                 await update_client_stats(session, docker)
+            await cleanup_client_stats(session)
 
             # Find instances to reap
             user_ids_to_reap = await find_instances_to_reap(
