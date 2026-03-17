@@ -226,7 +226,7 @@ async def stop_locked(session: AsyncSession, meta: DockerMeta) -> None:
 async def stop(session: AsyncSession, user_id: int) -> None:
     meta = await lock_meta(session, user_id, None)
 
-    stop_locked(session, meta)
+    await stop_locked(session, meta)
 
 
 async def stop_all(session: AsyncSession, chapter: str | None = None) -> None:
