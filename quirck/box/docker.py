@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Any
+from typing import Any, Sequence
 
 import aiodocker
 from aiodocker.containers import DockerContainer
@@ -11,7 +11,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from quirck.box.exception import DockerConflict
-from quirck.box.meta import ContainerMeta, Deployment, NetworkMeta
+from quirck.box.meta import ContainerMeta, ContainerNetworkMeta, Deployment, NetworkMeta
 from quirck.box.model import DockerClientStats, DockerMeta, DockerState
 from quirck.box.vpn import generate_vpn
 from quirck.core import config
@@ -37,15 +37,17 @@ async def create_network(user_id: int, network: NetworkMeta) -> DockerNetwork:
         )
 
 
-def kathara_endpoint_config(mac_address: str | None) -> dict[str, Any]:
+def kathara_endpoint_config(network: ContainerNetworkMeta) -> dict[str, Any]:
+    sysctls = ",".join(["net.ipv6.conf.IFNAME.disable_ipv6=0"] + network.sysctls)
+
     config = {
         "DriverOpts": {
-            "com.docker.network.endpoint.sysctls": "net.ipv6.conf.IFNAME.disable_ipv6=0"
+            "com.docker.network.endpoint.sysctls": sysctls,
         }
     }
 
-    if mac_address is not None:
-        config["DriverOpts"]["kathara.mac_addr"] = mac_address
+    if network.mac_address is not None:
+        config["DriverOpts"]["kathara.mac_addr"] = network.mac_address
 
     return config
 
@@ -84,19 +86,18 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
         networks = container.networks
     else:
         # Otherwise, we choose any of required networks
-        first_net, *other_tuples = container.networks.items()
+        first_net, *networks = container.networks
 
-        first_net_name, first_net_mac = first_net
-        host_options["NetworkMode"] = get_full_object_name(meta.user_id, first_net_name)
+        host_options["NetworkMode"] = get_full_object_name(
+            meta.user_id, first_net.network_name
+        )
         options["NetworkingConfig"] = {
             "EndpointsConfig": {
                 get_full_object_name(
-                    meta.user_id, first_net_name
-                ): kathara_endpoint_config(first_net_mac)
+                    meta.user_id, first_net.network_name
+                ): kathara_endpoint_config(first_net)
             }
         }
-
-        networks = dict(other_tuples)
 
     sysctls = {"net.ipv6.conf.all.disable_ipv6": "0"}
 
@@ -122,14 +123,14 @@ async def run_container(meta: DockerMeta, container: ContainerMeta) -> DockerCon
             },
         )
 
-        for network_name, mac_address in networks.items():
-            network = await client.networks.get(
-                get_full_object_name(meta.user_id, network_name)
+        for network in networks:
+            docker_network = await client.networks.get(
+                get_full_object_name(meta.user_id, network.network_name)
             )
-            await network.connect(
+            await docker_network.connect(
                 {
                     "Container": box.id,
-                    "EndpointConfig": kathara_endpoint_config(mac_address),
+                    "EndpointConfig": kathara_endpoint_config(network),
                 }
             )
 
@@ -274,7 +275,7 @@ async def exec_command(execution: Exec) -> ExecResult:
     return result
 
 
-async def find_active_dockers(session: AsyncSession) -> list[DockerMeta]:
+async def find_active_dockers(session: AsyncSession) -> Sequence[DockerMeta]:
     return (
         await session.scalars(
             select(DockerMeta).where(DockerMeta.state == DockerState.READY)

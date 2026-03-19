@@ -166,7 +166,7 @@ class OAuthClient:
         )
 
         if response.status_code != httpx.codes.OK:
-            logger.warn("URL: %s, Response: %s", response.status_code, response.text)
+            logger.warning("URL: %s, Response: %s", response.status_code, response.text)
             raise OAuthException(
                 f"Remote server returned error code {response.status_code}"
             )

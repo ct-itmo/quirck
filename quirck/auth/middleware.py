@@ -26,7 +26,7 @@ class AuthenticationMiddleware:
                 ).one_or_none()
 
                 if user is None:
-                    logger.warn(
+                    logger.warning(
                         "Unknown user %d with valid session, logging out",
                         session["user_id"],
                     )

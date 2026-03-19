@@ -1,3 +1,5 @@
+# type: ignore
+
 import uvicorn
 
 from quirck.core import config
