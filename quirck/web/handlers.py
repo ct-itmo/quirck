@@ -8,30 +8,24 @@ from quirck.core import config
 from quirck.web.template import TemplateResponse
 
 
-def http_exception_handler(request: Request, exc: HTTPException) -> Response:
+def exception_handler(request: Request, exc: Exception) -> Response:
+    if config.DEBUG:
+        tb = "\n".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    else:
+        tb = None
+
+    if not isinstance(exc, HTTPException):
+        exc = HTTPException(status_code=500, detail="На сервере проблема. Повторите запрос или напишите в чат.")
+
     return TemplateResponse(
         request,
         "error.html",
         {
-            "traceback": traceback.format_exception(type(exc), exc, exc.__traceback__)
-            if config.DEBUG
-            else None,
+            "traceback": tb,
             "error": exc.detail,
         },
         status_code=exc.status_code,
     )
 
 
-def base_exception_handler(request: Request, exc: Exception) -> Response:
-    return TemplateResponse(
-        request,
-        "error.html",
-        {
-            "traceback": exc if config.DEBUG else None,
-            "error": "На сервере проблема. Повторите запрос или напишите в чат.",
-        },
-        status_code=500,
-    )
-
-
-__all__ = ["http_exception_handler", "base_exception_handler"]
+__all__ = ["exception_handler"]

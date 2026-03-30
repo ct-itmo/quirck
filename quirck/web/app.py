@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from starlette.applications import Starlette
 from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
@@ -10,14 +12,15 @@ from quirck.auth.router import sso_router
 from quirck.core import config
 from quirck.core.module import app
 from quirck.db.middleware import DatabaseMiddleware
-from quirck.web.handlers import base_exception_handler, http_exception_handler
+from quirck.web.handlers import exception_handler
 
 
 def build_app() -> Starlette:
-    shutdown_handlers = []
-
-    if hasattr(app, "shutdown"):
-        shutdown_handlers.append(app.shutdown)
+    @asynccontextmanager
+    async def lifespan(_):
+        yield  # Run app
+        if hasattr(app, "shutdown"):
+            await app.shutdown()
 
     return Starlette(
         middleware=[
@@ -35,11 +38,8 @@ def build_app() -> Starlette:
             Mount("/static", app=StaticFiles(directory=app.static_path), name="static"),
             app.mount,
         ],
-        exception_handlers={
-            HTTPException: http_exception_handler,
-            Exception: base_exception_handler,
-        },  # type: ignore
-        on_shutdown=shutdown_handlers,
+        exception_handlers={Exception: exception_handler},
+        lifespan=lifespan,
     )
 
 
